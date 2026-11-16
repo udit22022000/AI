@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recursion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+
+/* Layout: one reading column; interactive "instrument panels" span the full container. Blue = arrows/references, amber = explanations, green = results. Merged from the "Inside CPython Memory" and "OOP & Functional Python" guides. */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --sunk:#E8ECF2; --ink:#141B2B; --muted:#596375; --line:#D3DAE4;
+  --ptr:#2B59E0; --rc:#A86400; --bad:#C43D3D; --imm:#7146C4; --ok:#1B8053; --hl:#E4EBFF;
+  --hdr:#D8E2F6; --gc:#F1E4C6; --data:#E3EFE6; --okbg:#E1F2E8; --badbg:#F9E3E3;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+    --ptr:#7D9CFF; --rc:#F0A53A; --bad:#F07373; --imm:#B597FF; --ok:#4BC58C; --hl:#1D2944;
+    --hdr:#24324F; --gc:#3B3320; --data:#1F3328; --okbg:#173326; --badbg:#3A1D22; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+  --ptr:#7D9CFF; --rc:#F0A53A; --bad:#F07373; --imm:#B597FF; --ok:#4BC58C; --hl:#1D2944;
+  --hdr:#24324F; --gc:#3B3320; --data:#1F3328; --okbg:#173326; --badbg:#3A1D22; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:40px 64px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.2rem;font-weight:700}
+p{margin:0}
+.prose{max-width:70ch;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+code{font-family:var(--mono);font-size:.88em}
+code,pre,.codebox,.console,.vars,.sig,.result,.dbox code,svg.mem,.chipv{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+p code,li code,td code,.term code{background:var(--sunk);padding:1px 5px;border-radius:4px}
+:focus-visible{outline:2px solid var(--ptr);outline-offset:2px}
+.eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+nav.top{position:sticky;top:env(safe-area-inset-top, 0px);z-index:5;background:color-mix(in srgb, var(--bg) 92%, transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);margin:0 calc(-1 * max(16px, env(safe-area-inset-left, 0px)));padding:0 max(16px, env(safe-area-inset-left, 0px))}
+nav.top .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-block:8px;align-items:center}
+nav.top a{flex:none;text-decoration:none;color:var(--muted);font-size:.84rem;padding:4px 10px;border-radius:999px;white-space:nowrap}
+nav.top a:hover{background:var(--sunk);color:var(--ink)}
+nav.top .grp{flex:none;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--ptr);padding:0 6px 0 12px;text-transform:uppercase}
+header.hero{padding-block:56px 28px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.hero .lede{font-size:1.15rem;color:var(--muted);max-width:64ch}
+.howto{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.88rem;color:var(--muted);align-items:center}
+.howto b{color:var(--ink)}
+kbd{font-family:var(--mono);font-size:.78rem;background:var(--surface);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink)}
+.paradigms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.paradigm{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:8px;align-content:start}
+.paradigm>b{font-family:var(--display);font-size:1.15rem}
+.paradigm p{font-size:.95rem;color:var(--muted)}
+.paradigm .eg{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:6px;padding:8px 10px;color:var(--ink);white-space:pre;overflow-x:auto}
+.partband{margin-top:56px;padding:22px 0 0;border-top:3px solid var(--ink);display:grid;gap:6px}
+.partband .eyebrow{color:var(--ptr)}
+.partband h2{font-size:clamp(1.9rem,4vw,2.8rem)}
+.partband p{color:var(--muted);max-width:66ch}
+section.chap{padding-block:48px 8px;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;border-top:1px solid var(--line);margin-top:24px}
+.partband + section.chap{border-top:0;margin-top:0}
+.chapnum{font-family:var(--mono);color:var(--ptr);font-size:.82rem;letter-spacing:.08em}
+pre.snip{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:0;line-height:1.6;min-width:0}
+pre.snip .c{color:var(--muted)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px;align-items:start}
+.vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px;align-items:start}
+.vs>div{display:grid;gap:8px;min-width:0;align-content:start}
+.tagline{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.tagline.good{color:var(--ok)}.tagline.bad{color:var(--bad)}.tagline.neutral{color:var(--muted)}
+ul.tidy{margin:0;padding-left:20px;display:grid;gap:8px;max-width:76ch}
+ol.seq{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px;max-width:78ch}
+ol.seq li{counter-increment:s;position:relative;padding-left:40px;min-height:26px}
+ol.seq li::before{position:absolute;left:0;top:0;content:counter(s);font-family:var(--mono);font-size:.8rem;font-weight:600;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--hl);color:var(--ptr);border:1px solid var(--ptr)}
+.terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.term{border-left:3px solid var(--ptr);padding:4px 0 4px 12px;display:grid;gap:3px;align-content:start}
+.term>b{font-size:1rem}
+.term span{font-size:.9rem;color:var(--muted)}
+.callout{border-left:3px solid var(--rc);background:var(--surface);padding:12px 14px;border-radius:0 8px 8px 0;font-size:.94rem;max-width:80ch}
+.callout b{color:var(--ink)}
+.scroll-x{overflow-x:auto;min-width:0}
+table.plain{border-collapse:collapse;width:100%;font-size:.92rem}
+table.plain th,table.plain td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.plain th{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.panel-head h3{font-size:1.05rem}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover{border-color:var(--ptr)}
+button.primary{background:var(--ptr);color:var(--surface);border-color:var(--ptr)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+.stepcount{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:7ch;text-align:center}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs button{background:transparent}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.codebox{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:8px;padding:10px 0;overflow-x:auto;line-height:1.7}
+.codebox .ln{display:block;padding:0 12px;white-space:pre;border-left:3px solid transparent}
+.codebox .ln.on{background:var(--hl);border-left-color:var(--ptr)}
+.codebox .ln i{font-style:normal;color:var(--muted);display:inline-block;width:2.4ch;user-select:none}
+.note{font-size:.95rem;border-left:3px solid var(--rc);padding:6px 0 6px 12px;min-height:4.8em}
+.console{font-family:var(--mono);font-size:.8rem;background:var(--ink);color:var(--bg);border-radius:8px;padding:10px 12px;min-height:58px;white-space:pre-wrap}
+.console .new{color:var(--rc)}
+.console .muted{opacity:.55}
+.vars{display:grid;grid-template-columns:auto auto 1fr;font-family:var(--mono);font-size:.78rem;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.vars>div{padding:5px 9px;border-bottom:1px solid var(--line)}
+.vars .sc{background:var(--sunk);color:var(--muted);font-size:.7rem}
+.vars .k{background:var(--sunk)}
+.vars .chg{background:var(--hl)}
+.vars .none{grid-column:1/-1;color:var(--muted)}
+.trgrid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.trgrid{grid-template-columns:1fr}}
+.col{display:grid;gap:8px;min-width:0;align-content:start}
+.col .eyebrow{font-size:.68rem}
+.refgrid{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.refgrid{grid-template-columns:1fr}}
+svg.mem{display:block;width:100%;min-width:600px;height:auto;font-family:var(--mono)}
+svg text{fill:var(--ink)}
+.frm rect.box{fill:var(--sunk);stroke:var(--line)}
+.frm text.fname{font-family:var(--body);font-weight:600;font-size:12px}
+.frm text.vname{font-size:12.5px}
+.frm rect.cell{fill:var(--surface);stroke:var(--line)}
+.dot{fill:var(--ptr)}
+.obj rect.body{fill:var(--surface);stroke:var(--ink);stroke-width:1.3}
+.obj.cls rect.body{stroke:var(--imm);stroke-width:2}
+.obj rect.band{fill:var(--hdr)}
+.obj.cls rect.band{fill:color-mix(in srgb, var(--imm) 18%, var(--surface))}
+.obj text.tname{font-size:10.5px;fill:var(--muted)}
+.obj.cls text.tname{fill:var(--imm);font-weight:600}
+.obj text.val{font-size:13px}
+.obj rect.slot{fill:var(--bg);stroke:var(--line)}
+.obj text.slab{font-size:9.5px;fill:var(--muted)}
+.obj.new rect.body{stroke:var(--ptr);stroke-width:2.4}
+.obj.hot rect.body{stroke:var(--ok);stroke-width:2.6}
+path.arrow{fill:none;stroke:var(--ptr);stroke-width:1.6;opacity:.85}
+path.arrow.cls{stroke:var(--imm);stroke-dasharray:5 4}
+path.arrow.new{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .55s ease forwards}
+path.arrow.cls.new{stroke-dasharray:5 4;stroke-dashoffset:0;animation:none}
+marker path{fill:var(--ptr)}
+.obj.new{animation:popin .45s ease}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes popin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.8rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:22px;height:12px;border-radius:3px;border:2px solid var(--ink);display:inline-block}
+/* lookup */
+.chain{display:grid;gap:0;max-width:640px}
+.lk{border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--surface);display:grid;gap:6px;transition:border-color .25s, background .25s}
+.lk .lkh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.lk .lkh b{font-family:var(--mono);font-size:.92rem}
+.lk .lkh span{font-size:.78rem;color:var(--muted)}
+.lk .attrs{display:flex;flex-wrap:wrap;gap:6px}
+.lk .attrs code{font-size:.78rem;background:var(--sunk);padding:2px 7px;border-radius:5px;border:1px solid transparent;transition:all .25s}
+.lk.checking{border-color:var(--rc);background:color-mix(in srgb, var(--gc) 60%, var(--surface))}
+.lk.miss{opacity:.55}
+.lk.found{border-color:var(--ok);background:var(--okbg)}
+.lk .attrs code.found{border-color:var(--ok);background:var(--surface);color:var(--ok);font-weight:600}
+.lkarrow{font-family:var(--mono);font-size:.75rem;color:var(--muted);padding:4px 0 4px 18px}
+.result{font-family:var(--mono);font-size:.88rem;padding:10px 12px;border-radius:8px;background:var(--sunk);min-height:44px}
+.result.ok{background:var(--okbg)}.result.bad{background:var(--badbg)}
+.lkgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.lkgrid{grid-template-columns:1fr}}
+/* dunder */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font-family:var(--mono);font-size:.8rem;background:var(--surface)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.dmap{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center}
+@media (max-width:640px){.dmap{grid-template-columns:1fr}.dmap .arr{transform:rotate(90deg);justify-self:start}}
+.dbox{border:1.5px solid var(--ink);border-radius:10px;padding:12px;background:var(--surface);display:grid;gap:4px;min-width:0}
+.dbox small{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.dbox code{font-size:1rem;font-weight:600;word-break:break-word}
+.dbox.py{border-color:var(--imm)}
+.arr{font-family:var(--mono);color:var(--ptr);font-size:1.3rem}
+/* pipeline */
+.pipe{display:grid;gap:10px}
+.prow{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;transition:opacity .3s}
+@media (max-width:600px){.prow{grid-template-columns:1fr}}
+.prow .lab{font-family:var(--mono);font-size:.8rem}
+.prow .lab small{display:block;color:var(--muted);font-family:var(--body);font-size:.75rem}
+.prow .vals{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:38px}
+.chipv{font-family:var(--mono);font-size:.85rem;min-width:40px;text-align:center;padding:6px 8px;border-radius:7px;border:1.5px solid var(--ink);background:var(--surface);animation:popin .35s ease both}
+.chipv.drop{border-style:dashed;border-color:var(--muted);color:var(--muted);text-decoration:line-through}
+.chipv.acc{border-color:var(--ok);background:var(--okbg)}
+.prow.off{opacity:.25}
+.prow.off .vals{visibility:hidden}
+.plus{color:var(--muted);font-family:var(--mono)}
+.pyramid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.pill{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:6px;align-content:start}
+.pill b{font-family:var(--display);font-size:1.05rem}
+.pill p{font-size:.92rem;color:var(--muted)}
+.mistakes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px}
+.mistake{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:8px;align-content:start}
+.mistake b{font-family:var(--display);font-size:1.02rem}
+.mistake p{font-size:.92rem;color:var(--muted)}
+.recap{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}
+.recap>div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:8px;align-content:start}
+.recap h3{font-size:1.05rem}
+.recap dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:.9rem}
+.recap dt{font-family:var(--mono);font-size:.82rem;font-weight:600}
+.recap dd{margin:0;color:var(--muted)}
+
+.codebox .ln.done{background:color-mix(in srgb, var(--ok) 10%, transparent)}
+.sig{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px 4px;font-family:var(--mono);font-size:.9rem;background:var(--sunk);border-radius:8px;padding:12px 14px}
+.sig .sp{display:inline-grid;gap:2px;justify-items:center;padding:0 2px}
+.sig .sp code{font-weight:600;color:var(--ptr)}
+.sig .sp small{font-family:var(--body);font-size:.66rem;color:var(--muted);white-space:nowrap}
+.bindtab td.err{color:var(--bad);font-family:var(--mono);font-size:.85rem}
+.tb{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.tb{grid-template-columns:1fr}}
+.paradigms.three{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+input[type=number],input[type=text]{font:inherit;font-family:var(--mono);font-size:.85rem;width:90px;padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.obj text.rc{font-size:10.5px;font-weight:600;fill:var(--rc)}
+.obj text.rc.imm{fill:var(--imm)}
+.obj.unreach rect.body{stroke:var(--rc);stroke-dasharray:5 4;stroke-width:2}
+.obj.freed{opacity:.55}
+.obj.freed rect.body{stroke:var(--bad);stroke-dasharray:4 3}
+.obj.freed text.rc{fill:var(--bad)}
+.obj.pulse text.rc{animation:pulse .7s ease}
+@keyframes pulse{0%{opacity:1}30%{opacity:.2}100%{opacity:1}}
+.sw.n{border-color:var(--ptr)}.sw.u{border-color:var(--rc);border-style:dashed}.sw.f{border-color:var(--bad);border-style:dashed}
+/* VM */
+.vmgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.vmgrid{grid-template-columns:1fr}}
+.vmcol{display:grid;gap:8px;min-width:0}
+.vmcol .eyebrow{font-size:.68rem}
+.bc{font-family:var(--mono);font-size:.78rem;background:var(--sunk);border-radius:8px;padding:6px 0;max-height:330px;overflow:auto}
+.bc div{display:grid;grid-template-columns:3ch 4ch minmax(0,1fr);gap:8px;padding:1px 10px;border-left:3px solid transparent;white-space:nowrap}
+.bc div.on{background:var(--hl);border-left-color:var(--ptr)}
+.bc .off{color:var(--muted);text-align:right}
+.bc .ln{color:var(--muted);text-align:right}
+.bc .arg{color:var(--muted)}
+.locals{display:grid;grid-template-columns:auto 1fr;font-family:var(--mono);font-size:.8rem;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.locals>div{padding:5px 10px;border-bottom:1px solid var(--line)}
+.locals>div:nth-last-child(-n+2){border-bottom:0}
+.locals .k{background:var(--sunk);color:var(--muted)}
+.locals .v.chg{background:var(--hl);transition:background .3s}
+.stack{display:flex;flex-direction:column-reverse;gap:6px;min-height:150px;border:1.5px dashed var(--line);border-radius:8px;padding:8px;justify-content:flex-start}
+.stack div{font-family:var(--mono);font-size:.8rem;background:var(--surface);border:1.5px solid var(--ink);border-radius:6px;padding:5px 10px;animation:popin .3s ease}
+.stack div:last-child{border-color:var(--ptr)}
+.stack .empty{border:0;background:none;color:var(--muted);animation:none;text-align:center}
+.vmresult{font-family:var(--mono);font-size:.85rem}
+
+/* pipeline diagram */
+figure{margin:0;display:grid;gap:8px;min-width:0}
+figcaption{font-size:.85rem;color:var(--muted);max-width:75ch}
+svg.diagram{display:block;width:100%;min-width:720px;height:auto;font-family:var(--mono);color:var(--ink)}
+svg.diagram .st{fill:var(--surface);stroke:currentColor;stroke-width:1.4}
+svg.diagram .st.hot{stroke:var(--ptr);stroke-width:2}
+svg.diagram .lbl{font-family:var(--body);font-size:13px;font-weight:600;fill:currentColor}
+svg.diagram .sub{font-size:10.5px;fill:var(--muted)}
+svg.diagram .edge{stroke:currentColor;stroke-width:1.3;fill:none}
+svg.diagram .elab{font-size:10.5px;fill:var(--ptr)}
+svg.diagram marker path{fill:currentColor}
+/* type cards */
+.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:12px;align-content:start;min-width:0}
+.tcard .th{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px}
+.tcard .th h3{font-family:var(--mono);font-size:1.15rem}
+.chip{font-size:.7rem;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+.chip.mut{color:var(--ptr)}.chip.imm{color:var(--imm)}.chip.gc{color:var(--rc)}
+.bar{display:flex;font-family:var(--mono);font-size:.68rem;border:1.3px solid var(--ink);border-radius:6px;overflow:hidden;min-height:46px}
+.bar>div{padding:4px 5px;border-right:1px solid var(--ink);display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden}
+.bar>div:last-child{border-right:0}
+.bar b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar small{color:var(--muted);font-size:.62rem}
+.bar .h{background:var(--hdr)}.bar .g{background:repeating-linear-gradient(135deg,var(--gc) 0 6px,transparent 6px 10px)}.bar .d{background:var(--data)}.bar .p{background:var(--surface)}
+.sizes{display:flex;flex-wrap:wrap;gap:6px}
+.sizes span{font-family:var(--mono);font-size:.74rem;background:var(--sunk);border-radius:6px;padding:3px 8px;font-variant-numeric:tabular-nums}
+.sizes span b{color:var(--rc);font-weight:600}
+.tcard ul{margin:0;padding-left:18px;display:grid;gap:6px;font-size:.93rem}
+.tcard h4{margin:0;font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tcard .plainw{font-size:1rem}
+.tcard .pic,.idea .pic{background:var(--bg);border-radius:8px;padding:10px;min-width:0;overflow-x:auto}
+.tcard .sizeline{font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.tcard .sizeline b{color:var(--rc)}
+.ideas{display:grid;gap:14px}
+.idea{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:22px;align-items:center}
+.idea .itext{display:grid;gap:8px;align-content:start;min-width:0}
+@media (max-width:760px){.idea{grid-template-columns:1fr}}
+.idea .num{font-family:var(--mono);font-size:.75rem;color:var(--ptr);letter-spacing:.08em}
+.idea h3{font-size:1.1rem}
+.idea p{font-size:.94rem}
+.mutab td{font-size:.95rem;line-height:2}
+svg.mini{display:block;width:100%;min-width:380px;height:auto;font-family:var(--mono)}
+svg.mini .tg rect{fill:var(--hl);stroke:var(--ptr);stroke-width:1.2}
+svg.mini .tg text{font-size:12px;fill:var(--ink);font-weight:600}
+svg.mini .bx rect.o{fill:var(--surface);stroke:var(--ink);stroke-width:1.4}
+svg.mini .bx.fresh rect.o{stroke:var(--ptr);stroke-width:2.2}
+svg.mini .bx.old rect.o{stroke:var(--muted);stroke-dasharray:4 3}
+svg.mini .bx.old text{fill:var(--muted)}
+svg.mini .bx text.t{font-size:9.5px;fill:var(--muted)}
+svg.mini .bx text.v{font-size:14px;fill:var(--ink)}
+svg.mini path.a{stroke:var(--ptr);stroke-width:1.5;fill:none}
+svg.mini path.a.old{stroke:var(--muted);stroke-dasharray:3 3}
+svg.mini text.nt{font-family:var(--body);font-size:11.5px;fill:var(--muted)}
+svg.mini text.nt.k{fill:var(--ink);font-weight:600}
+svg.mini text.mono{font-family:var(--mono);font-size:11.5px;fill:var(--ink)}
+svg.mini rect.cell{fill:var(--bg);stroke:var(--line)}
+svg.mini rect.cell.on{fill:var(--hl);stroke:var(--ptr);stroke-width:1.6}
+svg.mini rect.cell.spare{fill:none;stroke:var(--muted);stroke-dasharray:3 3}
+svg.mini text.ct{font-size:11px;fill:var(--ink)}
+svg.mini text.cs{font-size:9px;fill:var(--muted)}
+svg.mini circle.d{fill:var(--ptr)}
+svg.mini line.rule{stroke:var(--line)}
+
+/* list sim */
+.cells{display:flex;flex-wrap:wrap;gap:4px;padding:10px;border:1.5px solid var(--ink);border-radius:8px;min-height:58px;transition:background .3s}
+.cells.realloc{animation:flash .8s ease}
+@keyframes flash{0%{background:var(--hl)}100%{background:transparent}}
+.cells div{width:38px;height:36px;border-radius:5px;display:grid;place-items:center;font-family:var(--mono);font-size:.75rem;font-variant-numeric:tabular-nums}
+.cells .used{background:var(--hdr);border:1.3px solid var(--ink)}
+.cells .free{border:1.3px dashed var(--muted);color:var(--muted)}
+.cells .newc{animation:popin .3s ease}
+.stats{display:flex;flex-wrap:wrap;gap:8px 22px;font-family:var(--mono);font-size:.82rem}
+.stats b{color:var(--rc);font-variant-numeric:tabular-nums}
+.log{font-family:var(--mono);font-size:.76rem;color:var(--muted);max-height:96px;overflow:auto;display:grid;gap:2px}
+
+/* dict sim */
+.idx{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.idx div{border:1.3px solid var(--ink);border-radius:5px;text-align:center;font-family:var(--mono);font-size:.78rem;padding:4px 0 2px;background:var(--surface)}
+.idx div small{display:block;font-size:.6rem;color:var(--muted)}
+.idx div.emp{border-style:dashed;border-color:var(--muted);color:var(--muted)}
+.idx div.probe{background:var(--gc)}
+.idx div.hit{background:var(--hl);border-color:var(--ptr);border-width:2px}
+table.ent{border-collapse:collapse;font-family:var(--mono);font-size:.78rem;width:100%;min-width:320px}
+table.ent th,table.ent td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;font-variant-numeric:tabular-nums}
+table.ent th{color:var(--muted);font-weight:400;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}
+table.ent tr.hit td{background:var(--hl)}
+.dictgrid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.dictgrid{grid-template-columns:1fr}}
+
+/* gc */
+svg.gcs .ob rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.4}
+svg.gcs .ob.reach rect{stroke:var(--ok);stroke-width:2.4}
+svg.gcs .ob.dead rect{stroke:var(--bad);stroke-dasharray:5 4;stroke-width:2}
+svg.gcs .ob.gone{opacity:.25}
+svg.gcs .ob text{font-size:12px}
+svg.gcs .ob text.gr{fill:var(--rc);font-weight:600}
+svg.gcs .ob text.gr.hide{opacity:0}
+svg.gcs path.e{fill:none;stroke:var(--ptr);stroke-width:1.6}
+svg.gcs path.e.int{stroke:var(--rc);stroke-width:2.4}
+svg.gcs .root rect{fill:var(--sunk);stroke:var(--line)}
+.gens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.gens{grid-template-columns:1fr}}
+.gen{border:1.5px solid var(--ink);border-radius:10px;padding:12px;display:grid;gap:4px;background:var(--surface)}
+.gen b{font-family:var(--mono)}
+.gen span{font-size:.85rem;color:var(--muted)}
+.timeline{display:grid;gap:10px}
+.timeline div{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:baseline}
+.timeline b{font-family:var(--mono);color:var(--ptr)}
+.legendgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px}
+.legendgrid.two-col{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.legendgrid div{border-left:3px solid var(--ptr);padding:4px 0 4px 12px;display:grid;gap:2px;align-content:start}
+.legendgrid b{font-size:.95rem}
+.legendgrid span{font-size:.88rem;color:var(--muted)}
+ul.tidy{margin:0;padding-left:20px;display:grid;gap:8px}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.tips div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:6px;align-content:start}
+.tips b{font-family:var(--display);font-size:1.05rem}
+.tips p{font-size:.93rem}
+.tool{display:grid;gap:8px;align-content:start;min-width:0}
+.tool>b{font-family:var(--display);font-size:1.02rem}
+.tool p{font-size:.9rem;color:var(--muted)}
+
+/* ---- merged-guide additions ---- */
+.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:14px}
+.toc .paradigm ol{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:.9rem}
+.toc .paradigm a{color:var(--ink);text-decoration:none;display:flex;gap:8px;padding:2px 0}
+.toc .paradigm a:hover{color:var(--ptr)}
+.toc .paradigm a span{font-family:var(--mono);font-size:.74rem;color:var(--ptr);min-width:2ch;padding-top:2px}
+.ptoc{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ptoc a{font-size:.82rem;text-decoration:none;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+.ptoc a:hover{border-color:var(--ptr)}
+.ptoc a span{color:var(--ptr);font-family:var(--mono);font-size:.72rem;margin-right:6px}
+nav.top a.on{background:var(--ink);color:var(--surface)}
+nav.top a b{font-family:var(--mono);font-weight:600;font-size:.72rem;color:var(--ptr);margin-right:5px}
+nav.top a.on b{color:var(--surface)}
+.repl{font-family:var(--mono);font-size:.88rem;background:var(--sunk);border-radius:8px;padding:10px 14px;display:grid;gap:4px;min-width:0;overflow-x:auto}
+.repl .in{color:var(--muted);white-space:pre}
+.repl .out{color:var(--ok);font-weight:600;white-space:pre-wrap;word-break:break-word}
+.repl .out.err{color:var(--bad)}
+.evalbox .note,#slicer .note,#venn .note,#unpack .note{min-height:3.2em}
+.strip{display:flex;gap:6px;padding:10px 8px 4px 2px;width:max-content}
+.striplab,.cellc{display:grid;justify-items:center;gap:2px}
+.striplab{justify-items:end;padding:6px 4px 6px 0}
+.striplab small,.cellc small{font-family:var(--mono);font-size:.68rem;color:var(--muted);line-height:1.4}
+.striplab b,.cellc b{font-family:var(--mono);font-size:1.4rem;line-height:1.3}
+.cellc{width:52px;flex:none;border:1.5px solid var(--line);border-radius:8px;padding:6px 0;background:var(--surface);transition:background .2s,border-color .2s;position:relative}
+.cellc em{position:absolute;top:-9px;right:-6px;font-style:normal;font-family:var(--mono);font-size:.62rem;background:var(--ptr);color:var(--surface);border-radius:999px;padding:0 5px;line-height:1.6}
+.cellc em:empty{display:none}
+.cellc.on{border-color:var(--ptr);background:var(--hl)}
+.cellc.on b{color:var(--ptr)}
+code.pre{white-space:pre}
+svg.venn{display:block;width:100%;max-width:460px;min-width:300px;height:auto}
+svg.venn .ring{fill:none;stroke:var(--ink);stroke-width:1.6}
+svg.venn .rg{fill:transparent;transition:fill .25s}
+svg.venn .rg.on{fill:color-mix(in srgb, var(--ptr) 30%, transparent)}
+svg.venn .vnum{font-family:var(--mono);font-size:18px;font-weight:600}
+svg.venn .vlab{font-family:var(--mono);font-size:16px;fill:var(--muted)}
+.types{margin-top:4px}
+.vs>div.callout{display:block}
+.chips button,.repl,.strip,svg.mini,svg.venn,.bc,.locals,.stack,table.ent,.idx,.cells,.tcard pre,.ptoc,kbd{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+.tcard .pic svg.mini{max-width:560px;margin-inline:auto}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}path.arrow.new{stroke-dashoffset:0}}
+
+section.chap{border-top:0;margin-top:0;padding-top:0}
+body{margin:0}
+[hidden]{display:none!important}
+
+</style>
+</head>
+<body>
+<main class="wrap">
+<section class="chap" id="recur">
+  <span class="chapnum">RECURSION</span>
+  <h2>A function that calls itself</h2>
+  <div class="prose"><p><b>Recursion</b> solves a problem by breaking it into a smaller version of the same problem. Every recursive function needs two parts: a <b>base case</b> that stops the recursion, and a <b>recursive case</b> that moves toward it.</p></div>
+  <div class="vs">
+<pre class="snip">def factorial(n):
+    if n &lt;= 1:                 # base case: stop here
+        return 1
+    return n * factorial(n - 1)  # recursive case: smaller problem
+
+print(factorial(5))   # 120
+# factorial(5) = 5 * factorial(4)
+#              = 5 * 4 * factorial(3) ... = 5 * 4 * 3 * 2 * 1</pre>
+<pre class="snip"># Recursion shines on nested data of unknown depth
+def total_nested(items):
+    total = 0
+    for x in items:
+        if isinstance(x, list):
+            total += total_nested(x)   # dive into the sub-list
+        else:
+            total += x
+    return total
+
+print(total_nested([1, [2, 3], [4, [5, 6]]]))   # 21</pre>
+  </div>
+  <div class="prose"><p>Each call gets its own frame (its own <code>n</code>). Step through <code>fact(3)</code> to watch the frames stack up and unwind:</p></div>
+  <div class="panel" data-mref="rec" id="mref-rec"></div>
+  <div class="callout"><b>Limits:</b> Python allows about 1,000 nested calls (<code>sys.getrecursionlimit()</code>) and then raises <code>RecursionError</code>. Forgetting the base case causes exactly that. For simple counting, a loop is usually faster and clearer in Python; save recursion for tree-like problems such as folders, nested JSON or menus.</div>
+</section>
+</main>
+<script>
+
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function makeStepper(o){
+  let i = 0, timer = null;
+  const go = n => { const prev = i; i = Math.max(0, Math.min(o.count() - 1, n)); o.render(i, prev); upd(); };
+  const upd = () => { o.countEl.textContent = (i + 1) + " / " + o.count(); o.prevBtn.disabled = i === 0; o.nextBtn.disabled = i >= o.count() - 1; if (i >= o.count() - 1) stop(); };
+  const stop = () => { if (timer){ clearInterval(timer); timer = null; } if (o.playBtn){ o.playBtn.setAttribute("aria-pressed","false"); o.playBtn.textContent = "Play"; } };
+  o.prevBtn.onclick = () => { stop(); go(i - 1); };
+  o.nextBtn.onclick = () => { stop(); go(i + 1); };
+  o.resetBtn.onclick = () => { stop(); go(0); };
+  if (o.playBtn) o.playBtn.onclick = () => {
+    if (timer) return stop();
+    if (i >= o.count() - 1) go(0);
+    o.playBtn.setAttribute("aria-pressed","true"); o.playBtn.textContent = "Pause";
+    timer = setInterval(() => go(i + 1), o.delay || 1400);
+  };
+  if (o.host){ o.host.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "ArrowRight"){ e.preventDefault(); stop(); go(i + 1); }
+    if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); go(i - 1); }
+  }); }
+  return { go, reset(){ stop(); i = 0; o.render(0, -1); upd(); } };
+}
+
+function commentIndex(line){ let q = null; for (let i = 0; i < line.length; i++){ const c = line[i];
+  if (q){ if (c === q) q = null; continue; } if (c === '"' || c === "'") { q = c; continue; } if (c === "#") return i; } return -1; }
+document.querySelectorAll("pre.snip").forEach(pre => {
+  pre.innerHTML = pre.textContent.split("\n").map(l => { const i = commentIndex(l); return i < 0 ? esc(l) : esc(l.slice(0, i)) + `<span class="c">${esc(l.slice(i))}</span>`; }).join("\n");
+});
+/* ================= REFERENCE STEPPER ================= */
+// ops: N(id,type,label,slots,opts{imm,code,labels}) B(frame,name,id) U(frame,name) S(id,slots) P(frame) X() pop G() gc
+function scenario(def){
+  let st = {frames: JSON.parse(JSON.stringify(def.frames || [{name:"global", vars:[]}])), objs:{}};
+  const steps = []; let prevLive = {}, prevRc = {};
+  function api(){ return {
+    N(id, t, v, slots, opts){ st.objs[id] = {t, v, slots: slots || null, imm: !!(opts && opts.imm), code: !!(opts && opts.code), labels: opts && opts.labels}; },
+    B(f, n, id){ const fr = st.frames.find(x => x.name === f); const e = fr.vars.find(x => x[0] === n); if (e) e[1] = id; else fr.vars.push([n, id]); },
+    U(f, n){ const fr = st.frames.find(x => x.name === f); fr.vars = fr.vars.filter(x => x[0] !== n); },
+    S(id, slots){ st.objs[id].slots = slots; },
+    P(f){ st.frames.push({name:f, vars:[]}); },
+    X(){ st.frames.pop(); },
+    G(){ st.gc = true; }
+  }; }
+  const isRef = s => typeof s === "string";
+  const keep = o => o.imm || o.code;
+  function counts(){ const rc = {}; for (const id in st.objs) rc[id] = 0;
+    st.frames.forEach(f => f.vars.forEach(([, id]) => { if (id in rc) rc[id]++; }));
+    for (const id in st.objs){ (st.objs[id].slots || []).forEach(s => { if (isRef(s) && s in rc) rc[s]++; }); }
+    return rc; }
+  function reachable(){ const seen = new Set(); const q = [];
+    st.frames.forEach(f => f.vars.forEach(([, id]) => q.push(id)));
+    while (q.length){ const id = q.pop(); if (seen.has(id) || !st.objs[id]) continue; seen.add(id); (st.objs[id].slots || []).forEach(s => { if (isRef(s)) q.push(s); }); }
+    return seen; }
+  const all = [[null, def.startNote, () => {}]].concat(def.steps);
+  all.forEach(([line, note, fn]) => {
+    st.gc = false; fn(api());
+    const freed = [], collected = [];
+    if (st.gc){ const r = reachable(); for (const id in st.objs){ if (!r.has(id) && !keep(st.objs[id])){ collected.push([id, JSON.parse(JSON.stringify(st.objs[id]))]); delete st.objs[id]; } } }
+    let changed = true;
+    while (changed){ changed = false; const rc = counts();
+      for (const id in rc){ if (rc[id] === 0 && !keep(st.objs[id])){ freed.push([id, JSON.parse(JSON.stringify(st.objs[id]))]); delete st.objs[id]; changed = true; } } }
+    const rc = counts(), r = reachable();
+    steps.push({line, note, frames: JSON.parse(JSON.stringify(st.frames)), objs: JSON.parse(JSON.stringify(st.objs)), rc, freed, collected,
+      unreach: Object.keys(st.objs).filter(id => !r.has(id) && !keep(st.objs[id])),
+      fresh: Object.keys(st.objs).filter(id => !(id in prevLive)),
+      pulse: Object.keys(st.objs).filter(id => (id in prevRc) && prevRc[id] !== rc[id])});
+    prevLive = Object.assign({}, st.objs); prevRc = rc;
+  });
+  return Object.assign({}, def, {snaps: steps});
+}
+
+const SCEN = [
+ scenario({key:"alias", title:"Two names, one list", h:340,
+  code:["a = [1, 2]","b = a","b.append(3)","c = a.copy()","del a","b = None"],
+  pos:{L1:[320,40], L2:[560,140], I1:[320,262], I2:[450,262], I3:[580,262], NONE:[740,262]},
+  startNote:"Nothing exists yet. Press Step ▶ to run the first line.",
+  steps:[
+   [0,"Python makes a list box. Its two slots hold arrows to the numbers 1 and 2 (small numbers are built in and shared). The name a points at the list, so the list is \"used by 1\".",o=>{o.N("I1","int","1",null,{imm:1});o.N("I2","int","2",null,{imm:1});o.N("L1","list","",["I1","I2"]);o.B("global","a","L1");}],
+   [1,"b = a does NOT copy the list. b is just a second arrow to the same box, so it's now \"used by 2\".",o=>o.B("global","b","L1")],
+   [2,"Appending through b changes that one list. Since a points at the same box, a sees [1, 2, 3] too.",o=>{o.N("I3","int","3",null,{imm:1});o.S("L1",["I1","I2","I3"]);}],
+   [3,"copy() makes a new, separate list box. Its slots point at the same numbers, which is fine because numbers can't change.",o=>{o.N("L2","list","",["I1","I2","I3"]);o.B("global","c","L2");}],
+   [4,"del a removes the name a, not the list. b still points at the list, so it stays alive (now used by 1).",o=>o.U("global","a")],
+   [5,"b now points at None. Nothing uses the first list any more (count 0), so Python deletes it right away. The copy c is safe.",o=>{o.N("NONE","NoneType","None",null,{imm:1});o.B("global","b","NONE");}]
+  ]}),
+ scenario({key:"immut", title:"Changing numbers & text", h:300,
+  code:["x = 5","y = x","y = y + 1","s = \"hi\"","s = s + \"!\""],
+  pos:{I5:[340,20], I6:[340,110], SHI:[620,40], SHI2:[620,170]},
+  startNote:"Numbers and strings can't be changed. Watch what \"changing\" them really does.",
+  steps:[
+   [0,"x points at the number 5.",o=>{o.N("I5","int","5",null,{imm:1});o.B("global","x","I5");}],
+   [1,"y = x makes y point at the same 5. Nothing is copied.",o=>o.B("global","y","I5")],
+   [2,"5 can't become 6. Instead, Python gets the number 6 and moves the name y to it. x still points at 5, so x is unaffected.",o=>{o.N("I6","int","6",null,{imm:1});o.B("global","y","I6");}],
+   [3,"s points at the string \"hi\". Python also keeps this box because \"hi\" is written in your code (it's needed if this line runs again).",o=>{o.N("SHI","str","'hi'",null,{code:1});o.B("global","s","SHI");}],
+   [4,"Strings can't change either. s + \"!\" builds a brand-new string \"hi!\" and moves s to it. This is why building a long string with + in a loop is slow: each step copies the whole string.",o=>{o.N("SHI2","str","'hi!'");o.B("global","s","SHI2");}]
+  ]}),
+ scenario({key:"call", title:"Calling a function", h:330,
+  code:["def add(item, bucket):","    bucket.append(item)","    item = 0","    return bucket","cart = []","add(5, cart)"],
+  pos:{F:[330,16], L:[330,126], I5:[560,250], I0:[720,250]},
+  startNote:"Nothing is defined yet.",
+  steps:[
+   [0,"def creates a function object and points the name add at it. The function's code doesn't run yet.",o=>{o.N("F","function","add()");o.B("global","add","F");}],
+   [4,"cart points at a new, empty list.",o=>{o.N("L","list","",[]);o.B("global","cart","L");}],
+   [5,"Calling add(5, cart) creates a new frame (the function's own workspace). Its variables item and bucket point at the same objects you passed in. The list is not copied; it's now used by 2.",o=>{o.N("I5","int","5",null,{imm:1});o.P("add(item, bucket)");o.B("add(item, bucket)","item","I5");o.B("add(item, bucket)","bucket","L");}],
+   [1,"bucket.append(item) changes the list. Because bucket and cart point at the same list, your cart changes too.",o=>o.S("L",["I5"])],
+   [2,"item = 0 only moves the function's own variable item. Your code is unaffected, and the list still holds 5.",o=>{o.N("I0","int","0",null,{imm:1});o.B("add(item, bucket)","item","I0");}],
+   [3,"return ends the call and its frame disappears, along with its variables. The list survives because cart still points at it. cart is now [5].",o=>o.X()]
+  ]}),
+ scenario({key:"copy", title:"Copy vs deep copy", h:330,
+  code:["import copy","grid = [[1, 2], [3, 4]]","sh = grid.copy()","dp = copy.deepcopy(grid)","grid[0].append(9)"],
+  pos:{G:[300,20], SH:[470,20], DP:[690,112], R1:[300,232], R2:[480,232], D1:[640,232], D2:[770,232]},
+  startNote:"To keep the picture tidy, numbers are drawn inside the list slots here. (Really, each slot is an arrow to a number box.)",
+  steps:[
+   [1,"grid is a list that holds arrows to two inner lists.",o=>{o.N("R1","list","",[1,2]);o.N("R2","list","",[3,4]);o.N("G","list","",["R1","R2"]);o.B("global","grid","G");}],
+   [2,"copy() makes a new OUTER list only. Its arrows point at the SAME inner lists. This is called a shallow copy.",o=>{o.N("SH","list","",["R1","R2"]);o.B("global","sh","SH");}],
+   [3,"deepcopy() copies everything inside as well: new inner lists, not shared with grid.",o=>{o.N("D1","list","",[1,2]);o.N("D2","list","",[3,4]);o.N("DP","list","",["D1","D2"]);o.B("global","dp","DP");}],
+   [4,"Changing grid[0] changes the inner list that grid and sh share, so sh[0] is now [1, 2, 9] too. dp has its own copies and is unchanged.",o=>o.S("R1",[1,2,9])]
+  ]}),
+ scenario({key:"cycle", title:"Objects pointing at each other", h:260,
+  code:["a = []","b = []","a.append(b)","b.append(a)","del a, b","gc.collect()"],
+  pos:{A:[380,90], B:[640,90]},
+  startNote:"Two lists that point at each other form a cycle. Reference counting alone can't clean these up.",
+  steps:[
+   [0,"a points at an empty list.",o=>{o.N("A","list","",[]);o.B("global","a","A");}],
+   [1,"b points at another empty list.",o=>{o.N("B","list","",[]);o.B("global","b","B");}],
+   [2,"The first list now holds an arrow to the second, so the second list is used by 2.",o=>o.S("A",["B"])],
+   [3,"The second list points back at the first: a cycle. Both are used by 2.",o=>o.S("B",["A"])],
+   [4,"After del a, b each list is still used by 1, by the other list. Your code can never reach them again, but their counts aren't 0, so they aren't deleted. (Dashed outline = unreachable.)",o=>{o.U("global","a");o.U("global","b");}],
+   [5,"The garbage collector notices that nothing outside the pair points at them and deletes both. It runs automatically; gc.collect() just forces it now. The next panel shows how it decides.",o=>o.G()]
+  ]}),
+ scenario({key:"rec", title:"Functions calling functions", h:350,
+  code:["def fact(n):","    if n <= 1:","        return 1","    return n * fact(n - 1)","r = fact(3)"],
+  pos:{F:[360,20], I3:[600,120], I2:[600,196], I1:[600,272], I6:[780,20]},
+  startNote:"Every call gets its own frame with its own n. Frames stack up like plates; only the top one is running. This stack is the \"call stack\" you see in error tracebacks.",
+  steps:[
+   [0,"def points the name fact at a function object.",o=>{o.N("F","function","fact()");o.B("global","fact","F");}],
+   [4,"fact(3) starts: a frame where n is 3.",o=>{o.N("I3","int","3",null,{imm:1});o.P("fact · n=3");o.B("fact · n=3","n","I3");}],
+   [3,"3 is bigger than 1, so it calls fact(2) and waits. A second frame goes on top.",o=>{o.N("I2","int","2",null,{imm:1});o.P("fact · n=2");o.B("fact · n=2","n","I2");}],
+   [3,"fact(2) calls fact(1): a third frame. Python allows about 1000 frames before raising RecursionError.",o=>{o.N("I1","int","1",null,{imm:1});o.P("fact · n=1");o.B("fact · n=1","n","I1");}],
+   [2,"n is 1, so fact(1) returns 1 and its frame is removed.",o=>o.X()],
+   [3,"Back in fact(2): 2 × 1 = 2 is returned, and that frame is removed.",o=>o.X()],
+   [4,"fact(3) computes 3 × 2 = 6 and returns. The last frame is removed and r points at 6.",o=>{o.X();o.N("I6","int","6",null,{imm:1});o.B("global","r","I6");}]
+  ]}),
+ scenario({key:"default", title:"The mutable default trap", h:330,
+  code:["def add(x, bucket=[]):","    bucket.append(x)","    return bucket","add(1)","add(2)"],
+  pos:{F:[320,20], L:[560,150], I1:[320,250], I2:[420,250]},
+  startNote:"A classic bug that's easy to understand once you see the memory.",
+  steps:[
+   [0,"The default value [] is created ONCE, when def runs, and stored inside the function object. It is not created again on each call.",o=>{o.N("L","list","",[]);o.N("F","function","add()",["L"],{labels:["bucket default"]});o.B("global","add","F");}],
+   [3,"add(1): a new frame, and bucket points at that stored default list.",o=>{o.N("I1","int","1",null,{imm:1});o.P("add(x, bucket)");o.B("add(x, bucket)","x","I1");o.B("add(x, bucket)","bucket","L");}],
+   [1,"append changes that shared list.",o=>o.S("L",[1])],
+   [2,"The frame goes away, but the list lives on inside the function, still holding 1.",o=>o.X()],
+   [4,"add(2): bucket points at the SAME list again, which already contains [1].",o=>{o.N("I2","int","2",null,{imm:1});o.P("add(x, bucket)");o.B("add(x, bucket)","x","I2");o.B("add(x, bucket)","bucket","L");}],
+   [1,"Now it's [1, 2]. The fix: write bucket=None and create the list inside the function with if bucket is None: bucket = [].",o=>o.S("L",[1,2])],
+   [2,"Return. Every future call would keep adding to this one list.",o=>o.X()]
+  ]})
+];
+
+const CELL = 34, HDR = 18;
+function geom(o, x, y){
+  if (o.slots){ const n = Math.max(o.slots.length, 1); const w = Math.max(96, 16 + CELL * n); const h = o.labels ? 64 : 52;
+    const cells = []; for (let k = 0; k < o.slots.length; k++) cells.push({cx: x + 8 + CELL * k + CELL / 2, cy: y + HDR + 17});
+    return {x, y, w, h, cells}; }
+  const w = Math.max(96, 26 + 7.8 * String(o.v).length); return {x, y, w, h:52, cells:[]};
+}
+function varPath(x1, y1, t){ const tx = t.x, ty = t.y + t.h / 2; return `M${x1},${y1} C${x1 + 70},${y1} ${tx - 70},${ty} ${tx - 2},${ty}`; }
+function slotPath(c, src, t){
+  const tcx = t.x + t.w / 2;
+  if (t.y > src.y + 40){ const ty = t.y; return `M${c.cx},${c.cy} C${c.cx},${c.cy + 70} ${tcx},${ty - 70} ${tcx},${ty - 2}`; }
+  if (t.y < src.y - 40){ const ty = t.y + t.h; return `M${c.cx},${c.cy} C${c.cx},${c.cy - 60} ${tcx},${ty + 60} ${tcx},${ty + 2}`; }
+  if (t.x > src.x){ const ty = t.y + t.h, by = Math.max(src.y + src.h, ty) + 60; return `M${c.cx},${c.cy} C${c.cx},${by} ${tcx},${by} ${tcx},${ty + 2}`; }
+  const ty = t.y, by = Math.min(src.y, ty) - 55; return `M${c.cx},${c.cy} C${c.cx},${by} ${tcx},${by} ${tcx},${ty - 2}`;
+}
+function refWidget(host){
+  const list = host.dataset.mref.split(",").map(k => SCEN.find(s => s.key === k)), uid = host.id;
+  host.innerHTML = `${list.length > 1 ? `<div class="tabs" role="tablist" aria-label="Scenarios"></div>` : `<div class="panel-head"><h3>${esc(list[0].title)}</h3></div>`}
+    <div class="refgrid"><div style="display:grid;gap:12px;min-width:0;align-content:start"><div class="codebox"></div>
+      <div class="controls"><button type="button" data-a="reset">Reset</button><button type="button" data-a="prev" aria-label="Previous step">◀ Back</button><span class="stepcount"></span><button type="button" class="primary" data-a="next" aria-label="Next step">Step ▶</button><button type="button" data-a="play" aria-pressed="false">Play</button></div>
+      <p class="note" aria-live="polite"></p></div>
+    <div style="display:grid;gap:10px;min-width:0;align-content:start"><div class="scroll-x"><svg class="mem" role="img" aria-label="Memory diagram: frames with variables on the left, objects with their usage counts on the right"></svg></div>
+      <div class="legend"><span><i class="sw n"></i>new in this step</span><span><i class="sw u"></i>nothing can reach it, but not deleted yet</span><span><i class="sw f"></i>deleted in this step</span><span style="color:var(--imm)">shared = built-in value Python never deletes</span></div></div></div>`;
+  host.tabIndex = -1;
+  const q = s => host.querySelector(s); let cur = 0;
+  function render(i, prevI){
+    const sc = list[cur], s = sc.snaps[i], prev = prevI >= 0 && prevI !== i ? sc.snaps[prevI] : null;
+    const svg = q("svg.mem"); svg.setAttribute("viewBox", `0 0 900 ${sc.h}`);
+    let out = `<defs><marker id="ra-${uid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>`;
+    const varPts = []; let fy = 14;
+    s.frames.forEach((f, fi) => {
+      const rows = Math.max(f.vars.length, 1), fh = 26 + rows * 28 + 6;
+      const top = fi === s.frames.length - 1 && s.frames.length > 1;
+      out += `<g class="frm"><rect class="box" x="12" y="${fy}" width="236" height="${fh}" rx="7" ${top ? 'style="stroke:var(--ptr);stroke-width:1.6"' : ""}/>`;
+      out += `<text class="fname" x="24" y="${fy + 17}">${esc(f.name)}${top ? "  ← running" : ""}</text>`;
+      if (!f.vars.length) out += `<text class="vname" x="24" y="${fy + 42}" style="fill:var(--muted)">(no variables yet)</text>`;
+      f.vars.forEach(([n, id], k) => { const ry = fy + 26 + k * 28;
+        out += `<text class="vname" x="24" y="${ry + 18}">${esc(n)}</text><rect class="cell" x="176" y="${ry + 3}" width="56" height="22" rx="4"/><circle class="dot" cx="204" cy="${ry + 14}" r="3.5"/>`;
+        varPts.push({x:204, y:ry + 14, id, key:f.name + ":" + n}); });
+      out += `</g>`; fy += fh + 12;
+    });
+    const G = {};
+    const drawList = Object.keys(s.objs).map(id => [id, s.objs[id], ""]).concat(s.freed.map(([id, o]) => [id, o, "freed"]), s.collected.map(([id, o]) => [id, o, "freed"]));
+    drawList.forEach(([id, o]) => { const p = sc.pos[id] || [700, 40]; G[id] = geom(o, p[0], p[1]); });
+    let objs = "", arrows = "";
+    const prevKeys = new Set();
+    if (prev){ prev.frames.forEach(f => f.vars.forEach(([n, id]) => prevKeys.add(f.name + ":" + n + ">" + id)));
+      Object.keys(prev.objs).forEach(id => (prev.objs[id].slots || []).forEach((sl, k) => { if (typeof sl === "string") prevKeys.add(id + "#" + k + ">" + sl); })); }
+    drawList.forEach(([id, o, state]) => {
+      const g = G[id], cls = ["obj"];
+      if (state) cls.push("freed"); else { if (s.fresh.includes(id) && prev) cls.push("new"); if (s.unreach.includes(id)) cls.push("unreach"); if (s.pulse.includes(id)) cls.push("pulse"); }
+      const rcTxt = state ? "deleted" : o.imm ? "shared" : o.code ? "kept by code" : "used by " + s.rc[id];
+      objs += `<g class="${cls.join(" ")}"><rect class="body" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="6"/><rect class="band" x="${g.x + 1}" y="${g.y + 1}" width="${g.w - 2}" height="${HDR - 1}" rx="5"/>`;
+      objs += `<text class="tname" x="${g.x + 7}" y="${g.y + 13}">${esc(o.t)}</text><text class="rc${(o.imm || o.code) && !state ? " imm" : ""}" x="${g.x + g.w - 7}" y="${g.y + 13}" text-anchor="end">${rcTxt}</text>`;
+      if (o.slots){
+        if (!o.slots.length) objs += `<text class="val" x="${g.x + g.w / 2}" y="${g.y + HDR + 22}" text-anchor="middle" style="fill:var(--muted);font-size:11px">empty</text>`;
+        o.slots.forEach((sl, k) => { const c = g.cells[k];
+          objs += `<rect class="slot" x="${c.cx - CELL / 2 + 2}" y="${g.y + HDR + 5}" width="${CELL - 4}" height="24" rx="3"/>`;
+          if (typeof sl === "string") objs += `<circle class="dot" cx="${c.cx}" cy="${c.cy}" r="3.5"/>`; else objs += `<text class="val" x="${c.cx}" y="${c.cy + 4.5}" text-anchor="middle">${esc(sl)}</text>`;
+          if (o.labels && o.labels[k]) objs += `<text class="slab" x="${g.x + 8}" y="${g.y + g.h - 6}">${esc(o.labels[k])}</text>`;
+          if (typeof sl === "string" && !state && G[sl] && s.objs[sl]){ const isNew = prev && !prevKeys.has(id + "#" + k + ">" + sl);
+            arrows += `<path class="arrow${isNew ? " new" : ""}" pathLength="1" d="${slotPath(c, g, G[sl])}" marker-end="url(#ra-${uid})"/>`; }
+        });
+      } else objs += `<text class="val" x="${g.x + g.w / 2}" y="${g.y + HDR + 22}" text-anchor="middle">${esc(o.v)}</text>`;
+      objs += `</g>`;
+    });
+    varPts.forEach(v => { if (!G[v.id] || !s.objs[v.id]) return; const isNew = prev && !prevKeys.has(v.key + ">" + v.id);
+      arrows += `<path class="arrow${isNew ? " new" : ""}" pathLength="1" d="${varPath(v.x, v.y, G[v.id])}" marker-end="url(#ra-${uid})"/>`; });
+    svg.innerHTML = out + objs + arrows;
+    q(".codebox").innerHTML = sc.code.map((l, k) => `<span class="ln${s.line === k ? " on" : ""}"><i>${k + 1}</i>${esc(l)}</span>`).join("");
+    q(".note").textContent = s.note;
+  }
+  
+  const st = makeStepper({count:() => list[cur].snaps.length, render, prevBtn:q('[data-a="prev"]'), nextBtn:q('[data-a="next"]'), resetBtn:q('[data-a="reset"]'), playBtn:q('[data-a="play"]'), countEl:q(".stepcount"), delay:2600, host});
+  if (list.length > 1){ const tabs = q(".tabs");
+    tabs.innerHTML = list.map((s, k) => `<button type="button" role="tab" aria-selected="${k === 0}">${esc(s.title)}</button>`).join("");
+    tabs.querySelectorAll("button").forEach((btn, k) => btn.onclick = () => { cur = k; tabs.querySelectorAll("button").forEach((x, j) => x.setAttribute("aria-selected", j === k)); st.reset(); }); }
+  st.reset();
+}
+document.querySelectorAll("[data-mref]").forEach(refWidget);
+
+
+})();
+</script>
+</body>
+</html>

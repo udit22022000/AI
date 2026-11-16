@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Python VM Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --sunk:#E8ECF2; --ink:#141B2B; --muted:#596375; --line:#D3DAE4;
+  --ptr:#2B59E0; --rc:#A86400; --ok:#1B8053; --hl:#E4EBFF;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+    --ptr:#7D9CFF; --rc:#F0A53A; --ok:#4BC58C; --hl:#1D2944; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+  --ptr:#7D9CFF; --rc:#F0A53A; --ok:#4BC58C; --hl:#1D2944; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:40px 64px}
+.wrap{max-width:1120px;margin:0 auto;display:grid;gap:20px}
+h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.15;margin:0}
+h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+.prose{max-width:70ch;display:grid;gap:14px}
+code{font-family:var(--mono);font-size:.88em}
+p code,span code{background:var(--sunk);padding:1px 5px;border-radius:4px}
+code,.codebox,.bc,.locals,.stack,.vmresult{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+:focus-visible{outline:2px solid var(--ptr);outline-offset:2px}
+.eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.legendgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px}
+.legendgrid div{border-left:3px solid var(--ptr);padding:4px 0 4px 12px;display:grid;gap:2px;align-content:start}
+.legendgrid b{font-size:.95rem}
+.legendgrid span{font-size:.88rem;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover{border-color:var(--ptr)}
+button.primary{background:var(--ptr);color:var(--surface);border-color:var(--ptr)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+.stepcount{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:7ch;text-align:center}
+.codebox{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:8px;padding:10px 0;overflow-x:auto;line-height:1.7}
+.codebox .ln{display:block;padding:0 12px;white-space:pre;border-left:3px solid transparent}
+.codebox .ln.on{background:var(--hl);border-left-color:var(--ptr)}
+.codebox .ln i{font-style:normal;color:var(--muted);display:inline-block;width:2.4ch;user-select:none}
+.note{font-size:.95rem;border-left:3px solid var(--rc);padding:6px 0 6px 12px;min-height:4.8em}
+.vmgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.vmgrid{grid-template-columns:1fr}}
+.vmcol{display:grid;gap:8px;min-width:0}
+.bc{font-family:var(--mono);font-size:.78rem;background:var(--sunk);border-radius:8px;padding:6px 0;max-height:330px;overflow:auto}
+.bc div{display:grid;grid-template-columns:3ch 4ch minmax(0,1fr);gap:8px;padding:1px 10px;border-left:3px solid transparent;white-space:nowrap}
+.bc div.on{background:var(--hl);border-left-color:var(--ptr)}
+.bc .off,.bc .ln{color:var(--muted);text-align:right}
+.bc .arg{color:var(--muted)}
+.locals{display:grid;grid-template-columns:auto 1fr;font-family:var(--mono);font-size:.8rem;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.locals>div{padding:5px 10px;border-bottom:1px solid var(--line)}
+.locals>div:nth-last-child(-n+2){border-bottom:0}
+.locals .k{background:var(--sunk);color:var(--muted)}
+.locals .v.chg{background:var(--hl);transition:background .3s}
+.stack{display:flex;flex-direction:column-reverse;gap:6px;min-height:150px;border:1.5px dashed var(--line);border-radius:8px;padding:8px;justify-content:flex-start}
+.stack div{font-family:var(--mono);font-size:.8rem;background:var(--surface);border:1.5px solid var(--ink);border-radius:6px;padding:5px 10px;animation:popin .3s ease}
+.stack div:last-child{border-color:var(--ptr)}
+.stack .empty{border:0;background:none;color:var(--muted);animation:none;text-align:center}
+.vmresult{font-family:var(--mono);font-size:.85rem}
+@keyframes popin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="prose">
+    <h2>Watch the virtual machine work</h2>
+    <p>Python first translates your code into <b>bytecode</b>, a list of tiny instructions, and then a <b>virtual machine</b> runs them one at a time. The animation below runs a small function, <code>total([10, 20], 0.5)</code>, exactly as Python 3.12 does. You don't need to understand <code>def</code> and <code>for</code> yet; just watch the values move. The four panels are:</p>
+  </div>
+  <div class="legendgrid">
+    <div><b>Source</b><span>the line of your code being run</span></div>
+    <div><b>Bytecode</b><span>the real instructions Python made from it</span></div>
+    <div><b>Local variables</b><span>the function's own labelled slots: <code>prices</code>, <code>tax</code>, <code>s</code>, <code>p</code></span></div>
+    <div><b>Scratch pile</b><span>a stack of values. Instructions put values on top, and <code>+</code> takes the top two off and puts the answer back</span></div>
+  </div>
+  <div class="panel" id="vm" tabindex="-1">
+    <div class="panel-head">
+      <h3>Running <code>total([10, 20], 0.5)</code></h3>
+      <div class="controls">
+        <button id="vm-reset" type="button">Reset</button>
+        <button id="vm-prev" type="button" aria-label="Previous step">◀ Back</button>
+        <span class="stepcount" id="vm-count">0 / 0</span>
+        <button id="vm-next" class="primary" type="button" aria-label="Next step">Step ▶</button>
+        <button id="vm-play" type="button" aria-pressed="false">Play</button>
+      </div>
+    </div>
+    <div class="vmgrid">
+      <div class="vmcol"><span class="eyebrow">Source</span><div class="codebox" id="vm-src"></div>
+        <span class="eyebrow">What's happening</span><p class="note" id="vm-note" aria-live="polite"></p></div>
+      <div class="vmcol"><span class="eyebrow">Bytecode (from dis.dis(total))</span><div class="bc" id="vm-bc"></div></div>
+      <div class="vmcol"><span class="eyebrow">Local variables</span><div class="locals" id="vm-locals"></div>
+        <span class="eyebrow">Scratch pile · top is highlighted</span><div class="stack" id="vm-stack"></div>
+        <div class="vmresult" id="vm-result"></div></div>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function makeStepper(o){
+  let i = 0, timer = null;
+  const go = n => { const prev = i; i = Math.max(0, Math.min(o.count() - 1, n)); o.render(i, prev); upd(); };
+  const upd = () => { o.countEl.textContent = (i + 1) + " / " + o.count(); o.prevBtn.disabled = i === 0; o.nextBtn.disabled = i >= o.count() - 1; if (i >= o.count() - 1) stop(); };
+  const stop = () => { if (timer){ clearInterval(timer); timer = null; } if (o.playBtn){ o.playBtn.setAttribute("aria-pressed","false"); o.playBtn.textContent = "Play"; } };
+  o.prevBtn.onclick = () => { stop(); go(i - 1); };
+  o.nextBtn.onclick = () => { stop(); go(i + 1); };
+  o.resetBtn.onclick = () => { stop(); go(0); };
+  if (o.playBtn) o.playBtn.onclick = () => {
+    if (timer) return stop();
+    if (i >= o.count() - 1) go(0);
+    o.playBtn.setAttribute("aria-pressed","true"); o.playBtn.textContent = "Pause";
+    timer = setInterval(() => go(i + 1), o.delay || 1400);
+  };
+  if (o.host){ o.host.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "ArrowRight"){ e.preventDefault(); stop(); go(i + 1); }
+    if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); go(i - 1); }
+  }); }
+  return { go, reset(){ stop(); i = 0; o.render(0, -1); upd(); } };
+}
+
+/* ================= VM ================= */
+const SRC = ["def total(prices, tax):","    s = 0","    for p in prices:","        s += p","    return s * (1 + tax)"];
+const BC = [
+ [0,"RESUME","0",1],[2,"LOAD_CONST","1 (0)",2],[4,"STORE_FAST","2 (s)",2],[6,"LOAD_FAST","0 (prices)",3],[8,"GET_ITER","",3],
+ [10,"FOR_ITER","7 (to 28)",3],[14,"STORE_FAST","3 (p)",3],[16,"LOAD_FAST","2 (s)",4],[18,"LOAD_FAST","3 (p)",4],[20,"BINARY_OP","13 (+=)",4],
+ [24,"STORE_FAST","2 (s)",4],[26,"JUMP_BACKWARD","9 (to 10)",4],[28,"END_FOR","",3],[30,"LOAD_FAST","2 (s)",5],[32,"LOAD_CONST","2 (1)",5],
+ [34,"LOAD_FAST","1 (tax)",5],[36,"BINARY_OP","0 (+)",5],[40,"BINARY_OP","5 (*)",5],[44,"RETURN_VALUE","",5]];
+const fmt = v => v.t === "list" ? "[10, 20]" : v.t === "iter" ? "iterator (next item: #" + (v.i + 1) + ")" : v.t === "float" ? (Number.isInteger(v.v) ? v.v + ".0" : String(v.v)) : String(v.v);
+function buildVM(){
+  const LIST = {t:"list"}; const items = [10,20];
+  const loc = {prices:LIST, tax:{t:"float",v:0.5}, s:null, p:null};
+  const names = ["prices","tax","s","p"];
+  let stack = [], pc = 0, seenLine4 = false;
+  const trace = [];
+  const snap = (note, pcIdx, changed, result) => trace.push({pc:pcIdx, line: pcIdx >= 0 ? BC[pcIdx][3] : 1, loc: names.map(n => loc[n] ? fmt(loc[n]) : "(empty)"), changed, stack: stack.map(fmt), note, result});
+  snap("We call total([10, 20], 0.5). Python creates a fresh workspace for this call, called a frame. The two arguments go into the local variables prices and tax. s and p have slots too, but nothing is in them yet. The scratch pile is empty.", -1, null);
+  let guard = 0;
+  while (pc < BC.length && guard++ < 100){
+    const [off, op] = BC[pc]; let note = "", changed = null, next = pc + 1, result = null;
+    if (op === "RESUME") note = "RESUME just marks the start of the function. Nothing visible changes.";
+    else if (op === "LOAD_CONST"){ const v = off === 2 ? {t:"int",v:0} : {t:"int",v:1}; stack.push(v); note = "Put the number " + v.v + " on top of the scratch pile."; }
+    else if (op === "STORE_FAST"){ const nm = off === 14 ? "p" : "s"; loc[nm] = stack.pop(); changed = names.indexOf(nm);
+      note = off === 4 ? "Take the top value off the pile and store it in the variable s. Line 2 (s = 0) is done." : off === 14 ? "Store that item in the variable p. That's the \"for p in prices\" part: p now holds " + fmt(loc.p) + "." : "Store the answer back in s. Line 4 (s += p) is done: s is now " + fmt(loc.s) + "."; }
+    else if (op === "LOAD_FAST"){ const nm = {6:"prices",16:"s",18:"p",30:"s",34:"tax"}[off]; stack.push(loc[nm]);
+      note = nm === "prices" ? "Put the list prices on the pile. Only an arrow to the list goes there; the list itself is not copied." : "Put the current value of " + nm + " (" + fmt(loc[nm]) + ") on the pile."; }
+    else if (op === "GET_ITER"){ stack.pop(); stack.push({t:"iter", i:0}); note = "Swap the list for an iterator: a small helper that hands out the list's items one at a time and remembers where it is up to."; }
+    else if (op === "FOR_ITER"){
+      const it = stack[stack.length - 1];
+      if (it.i < items.length){ const v = {t:"int", v:items[it.i]}; it.i++; stack.push(v); note = "Ask the iterator for the next item. It gives " + v.v + ", which goes on top of the pile."; }
+      else { stack.pop(); next = BC.findIndex(b => b[0] === 30); note = "The iterator has no items left, so the loop is over. Python removes the iterator from the pile and jumps to the code after the loop."; }
+    }
+    else if (op === "BINARY_OP"){
+      const b = stack.pop(), a = stack.pop(); let r;
+      if (off === 20){ r = {t:"int", v:a.v + b.v}; note = "Take the top two values off the pile (" + a.v + " and " + b.v + "), add them, and put the answer " + r.v + " back. Since ints can't change, the answer is a brand-new int object."; seenLine4 = true; }
+      else if (off === 36){ r = {t:"float", v:a.v + b.v}; note = "Take 1 and 0.5 off the pile, add them, and put back 1.5."; }
+      else { r = {t:"float", v:a.v * b.v}; note = "Take 30 and 1.5 off the pile, multiply them, and put back 45.0."; }
+      stack.push(r);
+    }
+    else if (op === "JUMP_BACKWARD"){ next = BC.findIndex(b => b[0] === 10); note = "Jump back up to FOR_ITER to fetch the next item. This jump is what makes it a loop."; }
+    else if (op === "RETURN_VALUE"){ const r = stack.pop(); result = fmt(r); note = "Hand " + result + " back to the code that called total(). The frame is thrown away, along with its local variables. Done!"; snap(note, pc, null, result); break; }
+    snap(note, pc, changed, result);
+    pc = next;
+  }
+  return trace;
+}
+const vmTrace = buildVM();
+$("vm-bc").innerHTML = BC.map((b, k) => `<div data-k="${k}"><span class="ln">${b[0] === 0 || BC[k-1][3] !== b[3] ? b[3] : ""}</span><span class="off">${b[0]}</span><span>${b[1]} <span class="arg">${esc(b[2])}</span></span></div>`).join("");
+function vmRender(i){
+  const s = vmTrace[i];
+  $("vm-src").innerHTML = SRC.map((l, k) => `<span class="ln${s.line === k + 1 && s.pc >= 0 ? " on" : ""}"><i>${k + 1}</i>${esc(l)}</span>`).join("");
+  $("vm-bc").querySelectorAll("div").forEach(d => d.classList.toggle("on", +d.dataset.k === s.pc));
+  const on = $("vm-bc").querySelector(".on"); if (on){ const box = $("vm-bc"); const top = on.offsetTop - box.offsetTop; if (top < box.scrollTop || top > box.scrollTop + box.clientHeight - 30) box.scrollTop = top - 60; }
+  $("vm-locals").innerHTML = ["prices","tax","s","p"].map((n, k) => `<div class="k">${n}</div><div class="v${s.changed === k ? " chg" : ""}">${esc(s.loc[k])}</div>`).join("");
+  $("vm-stack").innerHTML = s.stack.length ? s.stack.map(v => `<div>${esc(v)}</div>`).join("") : `<div class="empty">empty</div>`;
+  $("vm-note").textContent = s.note;
+  $("vm-result").innerHTML = s.result ? `total([10, 20], 0.5) returned <b style="color:var(--ok)">${esc(s.result)}</b>` : "";
+}
+makeStepper({count:() => vmTrace.length, render:vmRender, prevBtn:$("vm-prev"), nextBtn:$("vm-next"), resetBtn:$("vm-reset"), playBtn:$("vm-play"), countEl:$("vm-count"), delay:1600, host:$("vm")}).reset();
+
+})();
+</script>
+</body>
+</html>

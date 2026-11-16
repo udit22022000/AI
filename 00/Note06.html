@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Strings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{--bg:#F2F4F7; --surface:#FFFFFF; --sunk:#E8ECF2; --ink:#141B2B; --muted:#596375; --line:#D3DAE4;
+  --ptr:#2B59E0; --rc:#A86400; --bad:#C43D3D; --imm:#7146C4; --ok:#1B8053; --hl:#E4EBFF;
+  --hdr:#D8E2F6; --gc:#F1E4C6; --data:#E3EFE6; --okbg:#E1F2E8; --badbg:#F9E3E3;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+    --ptr:#7D9CFF; --rc:#F0A53A; --bad:#F07373; --imm:#B597FF; --ok:#4BC58C; --hl:#1D2944;
+    --hdr:#24324F; --gc:#3B3320; --data:#1F3328; --okbg:#173326; --badbg:#3A1D22; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{--bg:#0E131D; --surface:#151C29; --sunk:#1B2433; --ink:#E5E9F0; --muted:#9AA4B5; --line:#2A3446;
+  --ptr:#7D9CFF; --rc:#F0A53A; --bad:#F07373; --imm:#B597FF; --ok:#4BC58C; --hl:#1D2944;
+  --hdr:#24324F; --gc:#3B3320; --data:#1F3328; --okbg:#173326; --badbg:#3A1D22; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:40px 64px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.2rem;font-weight:700}
+p{margin:0}
+.prose{max-width:70ch;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+code{font-family:var(--mono);font-size:.88em}
+code,pre,.codebox,.console,.vars,.sig,.result,.dbox code,svg.mem,.chipv{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+p code,li code,td code,.term code{background:var(--sunk);padding:1px 5px;border-radius:4px}
+:focus-visible{outline:2px solid var(--ptr);outline-offset:2px}
+.eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.chapnum{font-family:var(--mono);color:var(--ptr);font-size:.82rem;letter-spacing:.08em}
+pre.snip{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:0;line-height:1.6;min-width:0}
+pre.snip .c{color:var(--muted)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px;align-items:start}
+.vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px;align-items:start}
+.vs>div{display:grid;gap:8px;min-width:0;align-content:start}
+.tagline{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.tagline.good{color:var(--ok)}
+.tagline.bad{color:var(--bad)}
+.tagline.neutral{color:var(--muted)}
+ul.tidy{margin:0;padding-left:20px;display:grid;gap:8px;max-width:76ch}
+ol.seq{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px;max-width:78ch}
+ol.seq li{counter-increment:s;position:relative;padding-left:40px;min-height:26px}
+ol.seq li::before{position:absolute;left:0;top:0;content:counter(s);font-family:var(--mono);font-size:.8rem;font-weight:600;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--hl);color:var(--ptr);border:1px solid var(--ptr)}
+.terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.term{border-left:3px solid var(--ptr);padding:4px 0 4px 12px;display:grid;gap:3px;align-content:start}
+.term>b{font-size:1rem}
+.term span{font-size:.9rem;color:var(--muted)}
+.callout{border-left:3px solid var(--rc);background:var(--surface);padding:12px 14px;border-radius:0 8px 8px 0;font-size:.94rem;max-width:80ch}
+.callout b{color:var(--ink)}
+.scroll-x{overflow-x:auto;min-width:0}
+table.plain{border-collapse:collapse;width:100%;font-size:.92rem}
+table.plain th,table.plain td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.plain th{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.panel-head h3{font-size:1.05rem}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover{border-color:var(--ptr)}
+button.primary{background:var(--ptr);color:var(--surface);border-color:var(--ptr)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+.stepcount{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:7ch;text-align:center}
+.codebox{font-family:var(--mono);font-size:.8rem;background:var(--sunk);border-radius:8px;padding:10px 0;overflow-x:auto;line-height:1.7}
+.codebox .ln{display:block;padding:0 12px;white-space:pre;border-left:3px solid transparent}
+.codebox .ln.on{background:var(--hl);border-left-color:var(--ptr)}
+.codebox .ln i{font-style:normal;color:var(--muted);display:inline-block;width:2.4ch;user-select:none}
+.note{font-size:.95rem;border-left:3px solid var(--rc);padding:6px 0 6px 12px;min-height:4.8em}
+.console{font-family:var(--mono);font-size:.8rem;background:var(--ink);color:var(--bg);border-radius:8px;padding:10px 12px;min-height:58px;white-space:pre-wrap}
+.console .new{color:var(--rc)}
+.console .muted{opacity:.55}
+.vars{display:grid;grid-template-columns:auto auto 1fr;font-family:var(--mono);font-size:.78rem;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.vars>div{padding:5px 9px;border-bottom:1px solid var(--line)}
+.vars .sc{background:var(--sunk);color:var(--muted);font-size:.7rem}
+.vars .k{background:var(--sunk)}
+.vars .chg{background:var(--hl)}
+.vars .none{grid-column:1/-1;color:var(--muted)}
+.trgrid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.trgrid{grid-template-columns:1fr}}
+.col{display:grid;gap:8px;min-width:0;align-content:start}
+.col .eyebrow{font-size:.68rem}
+svg text{fill:var(--ink)}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes popin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font-family:var(--mono);font-size:.8rem;background:var(--surface)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.codebox .ln.done{background:color-mix(in srgb, var(--ok) 10%, transparent)}
+@keyframes pulse{0%{opacity:1}30%{opacity:.2}100%{opacity:1}}
+.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:12px;align-content:start;min-width:0}
+.tcard .th{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px}
+.tcard .th h3{font-family:var(--mono);font-size:1.15rem}
+.chip{font-size:.7rem;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+.chip.mut{color:var(--ptr)}
+.chip.imm{color:var(--imm)}
+.chip.gc{color:var(--rc)}
+.tcard ul{margin:0;padding-left:18px;display:grid;gap:6px;font-size:.93rem}
+.tcard h4{margin:0;font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tcard .plainw{font-size:1rem}
+.tcard .pic,.idea .pic{background:var(--bg);border-radius:8px;padding:10px;min-width:0;overflow-x:auto}
+.tcard .sizeline{font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.tcard .sizeline b{color:var(--rc)}
+svg.mini{display:block;width:100%;min-width:380px;height:auto;font-family:var(--mono)}
+svg.mini .tg rect{fill:var(--hl);stroke:var(--ptr);stroke-width:1.2}
+svg.mini .tg text{font-size:12px;fill:var(--ink);font-weight:600}
+svg.mini .bx rect.o{fill:var(--surface);stroke:var(--ink);stroke-width:1.4}
+svg.mini .bx.fresh rect.o{stroke:var(--ptr);stroke-width:2.2}
+svg.mini .bx.old rect.o{stroke:var(--muted);stroke-dasharray:4 3}
+svg.mini .bx.old text{fill:var(--muted)}
+svg.mini .bx text.t{font-size:9.5px;fill:var(--muted)}
+svg.mini .bx text.v{font-size:14px;fill:var(--ink)}
+svg.mini path.a{stroke:var(--ptr);stroke-width:1.5;fill:none}
+svg.mini path.a.old{stroke:var(--muted);stroke-dasharray:3 3}
+svg.mini text.nt{font-family:var(--body);font-size:11.5px;fill:var(--muted)}
+svg.mini text.nt.k{fill:var(--ink);font-weight:600}
+svg.mini text.mono{font-family:var(--mono);font-size:11.5px;fill:var(--ink)}
+svg.mini rect.cell{fill:var(--bg);stroke:var(--line)}
+svg.mini rect.cell.on{fill:var(--hl);stroke:var(--ptr);stroke-width:1.6}
+svg.mini rect.cell.spare{fill:none;stroke:var(--muted);stroke-dasharray:3 3}
+svg.mini text.ct{font-size:11px;fill:var(--ink)}
+svg.mini text.cs{font-size:9px;fill:var(--muted)}
+svg.mini circle.d{fill:var(--ptr)}
+svg.mini line.rule{stroke:var(--line)}
+@keyframes flash{0%{background:var(--hl)}100%{background:transparent}}
+ul.tidy{margin:0;padding-left:20px;display:grid;gap:8px}
+.repl{font-family:var(--mono);font-size:.88rem;background:var(--sunk);border-radius:8px;padding:10px 14px;display:grid;gap:4px;min-width:0;overflow-x:auto}
+.repl .in{color:var(--muted);white-space:pre}
+.repl .out{color:var(--ok);font-weight:600;white-space:pre-wrap;word-break:break-word}
+.repl .out.err{color:var(--bad)}
+.evalbox .note,#slicer .note,#venn .note,#unpack .note{min-height:3.2em}
+.strip{display:flex;gap:6px;padding:10px 8px 4px 2px;width:max-content}
+.striplab,.cellc{display:grid;justify-items:center;gap:2px}
+.striplab{justify-items:end;padding:6px 4px 6px 0}
+.striplab small,.cellc small{font-family:var(--mono);font-size:.68rem;color:var(--muted);line-height:1.4}
+.striplab b,.cellc b{font-family:var(--mono);font-size:1.4rem;line-height:1.3}
+.cellc{width:52px;flex:none;border:1.5px solid var(--line);border-radius:8px;padding:6px 0;background:var(--surface);transition:background .2s,border-color .2s;position:relative}
+.cellc em{position:absolute;top:-9px;right:-6px;font-style:normal;font-family:var(--mono);font-size:.62rem;background:var(--ptr);color:var(--surface);border-radius:999px;padding:0 5px;line-height:1.6}
+.cellc em:empty{display:none}
+.cellc.on{border-color:var(--ptr);background:var(--hl)}
+.cellc.on b{color:var(--ptr)}
+code.pre{white-space:pre}
+.types{margin-top:4px}
+.vs>div.callout{display:block}
+.chips button,.repl,.strip,svg.mini,svg.venn,.bc,.locals,.stack,table.ent,.idx,.cells,.tcard pre,.ptoc,kbd{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+.tcard .pic svg.mini{max-width:560px;margin-inline:auto}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+section.chap{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+body{margin:0}
+</style>
+</head>
+<body>
+<main class="wrap">
+<section class="chap" id="strings">
+  <span class="chapnum">STRINGS</span>
+  <h2>Strings: text as a sequence of characters</h2>
+  <div class="prose">
+    <p>A <b>string</b> (<code>str</code>) is text: a sequence of characters, written in quotes. Single and double quotes are identical; pick whichever avoids clashing with quotes inside the text. Strings are <b>immutable</b>: every method that "changes" a string actually returns a new one.</p>
+  </div>
+<pre class="snip">greeting = "Hello"
+reply = 'She said "hi"'           # use the other quote type inside
+poem = """Roses are red,
+violets are blue."""              # triple quotes: text over several lines
+path = r"C:\new\table"            # r"..." raw string: backslashes are kept as-is
+print("Tab:\tend")                # Tab:	end    \t tab, \n new line, \\ backslash
+print(len(greeting))              # 5
+print(greeting + "!" * 3)         # Hello!!!
+print("ell" in greeting)          # True    is this text inside?</pre>
+  <div class="prose">
+    <h3>Indexing and slicing</h3>
+    <p>Every character has a position number, its <b>index</b>, starting from <b>0</b>. Negative indexes count from the end. A <b>slice</b> <code>s[start:stop]</code> takes a range of characters, and stops <i>just before</i> <code>stop</code>. Lists and tuples use exactly the same rules, so learning it here pays off twice.</p>
+  </div>
+  <div class="panel" id="slicer"></div>
+  <div class="prose">
+    <h3>f-strings: putting values into text</h3>
+    <p>Put an <code>f</code> before the quotes and write any variable or expression inside <code>{ }</code>. After a colon you can add a <b>format spec</b> to control decimals, padding and alignment. Here, <code>name = "Widget"</code>, <code>price = 1234.5678</code>, <code>qty = 7</code> and <code>ratio = 0.256</code>:</p>
+  </div>
+  <div class="scroll-x"><table class="plain" id="fstr-table"><thead><tr><th>You write</th><th>You get</th><th>Meaning</th></tr></thead><tbody></tbody></table></div>
+  <div class="callout">You'll also see older styles in existing code: <code>"{} costs {}".format(name, price)</code> and <code>"%s costs %d" % (name, qty)</code>. They still work, but f-strings are shorter and faster.</div>
+  <div class="prose"><h3>String methods</h3><p>Methods are functions that belong to a value, called with a dot: <code>text.upper()</code>. Click to try the most useful ones:</p></div>
+  <div class="panel evalbox" id="ev-str"></div>
+  <div class="vs">
+<pre class="snip">raw = "  alice , 30 , NYC  "
+parts = [p.strip() for p in raw.split(",")]
+print(parts)                      # ['alice', '30', 'NYC']
+
+words = "one two three".split()
+print(" ".join(reversed(words)))  # three two one</pre>
+    <div class="callout"><b>Building a long string?</b> Because strings can't change, <code>text += piece</code> in a big loop copies the whole string every time. Collect the pieces in a list and join once at the end: <code>"".join(pieces)</code>.</div>
+  </div>
+  <div class="prose">
+    <h3>Characters, bytes and encodings</h3>
+    <p>A <code>str</code> holds <b>characters</b> (any language, any emoji). Files and networks deal in <b>bytes</b>. Converting between them is called encoding and decoding, and <b>UTF-8</b> is the standard you should use.</p>
+  </div>
+<pre class="snip">data = "café".encode("utf-8")     # str → bytes
+print(data)                       # b'caf\xc3\xa9'    é takes 2 bytes
+print(len("café"), len(data))     # 4 5
+print(data.decode("utf-8"))       # café              bytes → str
+print(ord("A"), chr(65))          # 65 A              character ↔ code number</pre>
+  <div class="types" data-cards="str"></div>
+</section>
+</main>
+<script>
+
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function makeStepper(o){
+  let i = 0, timer = null;
+  const go = n => { const prev = i; i = Math.max(0, Math.min(o.count() - 1, n)); o.render(i, prev); upd(); };
+  const upd = () => { o.countEl.textContent = (i + 1) + " / " + o.count(); o.prevBtn.disabled = i === 0; o.nextBtn.disabled = i >= o.count() - 1; if (i >= o.count() - 1) stop(); };
+  const stop = () => { if (timer){ clearInterval(timer); timer = null; } if (o.playBtn){ o.playBtn.setAttribute("aria-pressed","false"); o.playBtn.textContent = "Play"; } };
+  o.prevBtn.onclick = () => { stop(); go(i - 1); };
+  o.nextBtn.onclick = () => { stop(); go(i + 1); };
+  o.resetBtn.onclick = () => { stop(); go(0); };
+  if (o.playBtn) o.playBtn.onclick = () => {
+    if (timer) return stop();
+    if (i >= o.count() - 1) go(0);
+    o.playBtn.setAttribute("aria-pressed","true"); o.playBtn.textContent = "Pause";
+    timer = setInterval(() => go(i + 1), o.delay || 1400);
+  };
+  if (o.host){ o.host.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "ArrowRight"){ e.preventDefault(); stop(); go(i + 1); }
+    if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); go(i - 1); }
+  }); }
+  return { go, reset(){ stop(); i = 0; o.render(0, -1); upd(); } };
+}
+
+function commentIndex(line){ let q = null; for (let i = 0; i < line.length; i++){ const c = line[i];
+  if (q){ if (c === q) q = null; continue; } if (c === '"' || c === "'") { q = c; continue; } if (c === "#") return i; } return -1; }
+document.querySelectorAll("pre.snip").forEach(pre => {
+  pre.innerHTML = pre.textContent.split("\n").map(l => { const i = commentIndex(l); return i < 0 ? esc(l) : esc(l.slice(0, i)) + `<span class="c">${esc(l.slice(i))}</span>`; }).join("\n");
+});
+const codeHTML = (lines, on) => lines.map((l, k) => `<span class="ln${on === k ? " on" : ""}"><i>${k + 1}</i>${esc(l)}</span>`).join("");
+const consoleHTML = (out, fresh) => out.length ? out.map((l, k) => `<div class="${k >= out.length - fresh ? "new" : ""}">${esc(l)}</div>`).join("") : `<div class="muted">(nothing printed yet)</div>`;
+
+const BD = {"ev-str": {"title": "Common string methods", "setup": "", "items": [{"expr": "\"hello world\".title()", "res": "'Hello World'", "err": false, "note": "Capitalise each word. Also <code>.upper()</code>, <code>.lower()</code>, <code>.capitalize()</code>."}, {"expr": "\"  ada  \\n\".strip()", "res": "'ada'", "err": false, "note": "Remove spaces and newlines from both ends. Essential for cleaning user input and file lines."}, {"expr": "\"a,b,c\".split(\",\")", "res": "['a', 'b', 'c']", "err": false, "note": "Cut a string into a list at every separator."}, {"expr": "\"one  two   three\".split()", "res": "['one', 'two', 'three']", "err": false, "note": "With no argument, split on any run of whitespace."}, {"expr": "\"-\".join([\"2024\", \"01\", \"15\"])", "res": "'2024-01-15'", "err": false, "note": "The opposite of split: glue a list of strings together. The separator comes first."}, {"expr": "\"banana\".count(\"a\")", "res": "3", "err": false, "note": "How many times does it appear?"}, {"expr": "\"banana\".find(\"n\")", "res": "2", "err": false, "note": "Position of the first match…"}, {"expr": "\"banana\".find(\"z\")", "res": "-1", "err": false, "note": "…or −1 if not found. (<code>.index()</code> raises an error instead.)"}, {"expr": "\"banana\".replace(\"a\", \"o\")", "res": "'bonono'", "err": false, "note": "Returns a NEW string. The original is unchanged, because strings can't change."}, {"expr": "\"photo.jpg\".endswith(\".jpg\")", "res": "True", "err": false, "note": "Also <code>.startswith()</code>. Both accept a tuple of options."}, {"expr": "\"report.txt\".removesuffix(\".txt\")", "res": "'report'", "err": false, "note": "Also <code>.removeprefix()</code>."}, {"expr": "\"user@mail.com\".partition(\"@\")", "res": "('user', '@', 'mail.com')", "err": false, "note": "Split once into (before, separator, after)."}, {"expr": "\"2024\".isdigit()", "res": "True", "err": false, "note": "Also <code>.isalpha()</code>, <code>.isalnum()</code>, <code>.isspace()</code>."}, {"expr": "\"7\".zfill(3)", "res": "'007'", "err": false, "note": "Pad with zeros on the left."}, {"expr": "\"ab\" * 3", "res": "'ababab'", "err": false, "note": "Repeat a string."}, {"expr": "\"Py\" + \"thon\"", "res": "'Python'", "err": false, "note": "Join two strings with <code>+</code>."}]}, "slicer": [{"expr": "s[0]", "res": "'P'", "err": false, "note": "Indexes start at 0, so the first character is s[0].", "idx": [0]}, {"expr": "s[5]", "res": "'n'", "err": false, "note": "The last index is len(s) − 1 = 5.", "idx": [5]}, {"expr": "s[-1]", "res": "'n'", "err": false, "note": "Negative indexes count from the end: −1 is the last character.", "idx": [5]}, {"expr": "s[-2]", "res": "'o'", "err": false, "note": "−2 is the second to last.", "idx": [4]}, {"expr": "s[1:4]", "res": "'yth'", "err": false, "note": "A slice [start:stop] includes start but stops BEFORE stop: indexes 1, 2, 3.", "idx": [1, 2, 3]}, {"expr": "s[:2]", "res": "'Py'", "err": false, "note": "Leave out start to begin at the beginning.", "idx": [0, 1]}, {"expr": "s[2:]", "res": "'thon'", "err": false, "note": "Leave out stop to go to the end.", "idx": [2, 3, 4, 5]}, {"expr": "s[-3:]", "res": "'hon'", "err": false, "note": "The last three characters.", "idx": [3, 4, 5]}, {"expr": "s[::2]", "res": "'Pto'", "err": false, "note": "A third number is the step: every 2nd character.", "idx": [0, 2, 4]}, {"expr": "s[::-1]", "res": "'nohtyP'", "err": false, "note": "A step of −1 walks backwards: the classic way to reverse.", "idx": [5, 4, 3, 2, 1, 0]}, {"expr": "s[1:100]", "res": "'ython'", "err": false, "note": "Slices never raise errors; a stop past the end just means \"to the end\".", "idx": [1, 2, 3, 4, 5]}, {"expr": "s[10]", "res": "IndexError: string index out of range", "err": true, "note": "But a single index past the end is an error.", "idx": []}], "fstr": [{"expr": "f\"{name} costs {price}\"", "res": "Widget costs 1234.5678", "note": "put any variable or expression inside { }"}, {"expr": "f\"{price:.2f}\"", "res": "1234.57", "note": "2 decimal places"}, {"expr": "f\"{price:,.2f}\"", "res": "1,234.57", "note": "thousands separator + 2 decimals"}, {"expr": "f\"{qty:03d}\"", "res": "007", "note": "pad with zeros to width 3"}, {"expr": "f\"{ratio:.1%}\"", "res": "25.6%", "note": "as a percentage"}, {"expr": "f\"[{name:<10}]\"", "res": "[Widget    ]", "note": "left-align in 10 characters"}, {"expr": "f\"[{name:>10}]\"", "res": "[    Widget]", "note": "right-align"}, {"expr": "f\"[{name:^10}]\"", "res": "[  Widget  ]", "note": "centre"}, {"expr": "f\"{qty * 2 + 1}\"", "res": "15", "note": "any expression works"}, {"expr": "f\"{qty=}\"", "res": "qty=7", "note": "debug form: shows the name and the value"}]};
+function evalbox(id){
+  const d = BD[id], host = $(id); if (!host) return;
+  host.innerHTML = `<div class="panel-head"><h3>${d.title}</h3>${d.setup ? `<span class="eyebrow" style="text-transform:none;letter-spacing:0">setup: ${esc(d.setup.replace(/\n/g, "; "))}</span>` : ""}</div>
+    <div class="chips"></div><div class="repl"><div class="in"></div><div class="out"></div></div><p class="note" aria-live="polite"></p>`;
+  const chips = host.querySelector(".chips");
+  chips.innerHTML = d.items.map((it, k) => `<button type="button" data-k="${k}" aria-pressed="false">${esc(it.expr)}</button>`).join("");
+  const show = k => { const it = d.items[k];
+    chips.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", j === k));
+    host.querySelector(".in").textContent = ">>> " + it.expr;
+    const out = host.querySelector(".out"); out.textContent = it.res; out.className = "out" + (it.err ? " err" : "");
+    host.querySelector(".note").innerHTML = it.note; };
+  chips.addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(+b.dataset.k); });
+  show(0);
+}
+["ev-str"].forEach(evalbox);
+// string index / slice explorer
+(function(){
+  const host = $("slicer"); if (!host) return;
+  const S = "Python", d = BD.slicer;
+  host.innerHTML = `<div class="panel-head"><h3>Indexing and slicing <code>s = "Python"</code></h3></div>
+    <div class="scroll-x"><div class="strip"><div class="striplab"><small>index</small><b>&nbsp;</b><small>from end</small></div>${[...S].map((c, i) => `<div class="cellc" data-i="${i}"><small>${i}</small><b>${c}</b><small>${i - S.length}</small><em></em></div>`).join("")}</div></div>
+    <div class="chips"></div><div class="repl"><div class="in"></div><div class="out"></div></div><p class="note" aria-live="polite"></p>`;
+  const chips = host.querySelector(".chips");
+  chips.innerHTML = d.map((it, k) => `<button type="button" data-k="${k}" aria-pressed="false">${esc(it.expr)}</button>`).join("");
+  const show = k => { const it = d[k];
+    chips.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", j === k));
+    host.querySelectorAll(".cellc").forEach(c => { const pos = it.idx.indexOf(+c.dataset.i); c.classList.toggle("on", pos >= 0); c.querySelector("em").textContent = pos >= 0 && it.idx.length > 1 ? "#" + (pos + 1) : ""; });
+    host.querySelector(".in").textContent = ">>> " + it.expr;
+    const out = host.querySelector(".out"); out.textContent = it.res; out.className = "out" + (it.err ? " err" : "");
+    host.querySelector(".note").textContent = it.note + (it.idx.length > 1 ? " The small numbers show the order the characters are taken in." : ""); };
+  chips.addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(+b.dataset.k); });
+  show(4);
+})();
+
+// f-string table
+(function(){ const t = $("fstr-table"); if (!t) return;
+  t.querySelector("tbody").innerHTML = BD.fstr.map(r => `<tr><td><code class="pre">${esc(r.expr)}</code></td><td><code class="pre">${esc(r.res)}</code></td><td>${esc(r.note)}</td></tr>`).join(""); })();
+
+/* ================= TYPE CARDS (beginner) ================= */
+const tg = (x, y, t) => { const w = 18 + t.length * 8; return `<g class="tg"><rect x="${x}" y="${y}" width="${w}" height="24" rx="12"/><text x="${x + w / 2}" y="${y + 16.5}" text-anchor="middle">${esc(t)}</text></g>`; };
+const tgEnd = (x, t) => x + 18 + t.length * 8;
+const bx = (x, y, w, h, t, v, cls) => `<g class="bx ${cls || ""}"><rect class="o" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><text class="t" x="${x + 7}" y="${y + 13}">${esc(t)}</text>${v !== "" ? `<text class="v" x="${x + w / 2}" y="${y + h / 2 + 11}" text-anchor="middle">${esc(v)}</text>` : ""}</g>`;
+const ar = (x1, y1, x2, y2, cls) => { const mx = (x1 + x2) / 2; return `<path class="a ${cls || ""}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" marker-end="url(#mk)"/>`; };
+const arV = (x1, y1, x2, y2) => { const my = (y1 + y2) / 2; return `<path class="a" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" marker-end="url(#mk)"/>`; };
+const nt = (x, y, t, cls) => `<text class="nt ${cls || ""}" x="${x}" y="${y}">${esc(t)}</text>`;
+const mono = (x, y, t, anchor) => `<text class="mono" x="${x}" y="${y}" text-anchor="${anchor || "start"}">${esc(t)}</text>`;
+const cell = (x, y, w, h, txt, cls, small) => `<rect class="cell ${cls || ""}" x="${x}" y="${y}" width="${w}" height="${h}" rx="4"/>` + (txt !== "" ? `<text class="${small ? "cs" : "ct"}" x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle">${esc(txt)}</text>` : "");
+const pic = (h, label, body) => `<svg class="mini" viewBox="0 0 440 ${h}" role="img" aria-label="${esc(label)}">${body}</svg>`;
+function slots(y, filled, label){ let s = ""; for (let k = 0; k < 8; k++){ const f = filled[k]; s += cell(12 + k * 52, y, 48, 40, f ? f[0] : "–", f ? (f[1] ? "on" : "") : "", false); s += `<text class="cs" x="${36 + k * 52}" y="${y + 54}" text-anchor="middle">${label} ${k}</text>`; } return s; }
+
+const IDEAS = [
+ {h:"Every value is a box (an object)", p:"When you write <code>42</code>, Python makes a box in memory. The box remembers three things: what <b>type</b> it is, how many <b>names</b> are using it, and the <b>value</b>. Even a tiny number gets a whole box, which is why Python uses more memory than you might expect.",
+  pic: pic(128, "An object box with three parts: type int, names using it 2, value 42", (() => {
+    let s = `<rect x="120" y="8" width="230" height="112" rx="8" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.4"/>`;
+    s += `<text class="nt k" x="134" y="28">one object in memory</text>`;
+    [["type", "int"], ["names using it", "2"], ["value", "42"]].forEach(([k, v], i) => { const y = 40 + i * 26;
+      s += `<line class="rule" x1="128" y1="${y}" x2="342" y2="${y}"/><text class="nt" x="134" y="${y + 17}">${k}</text><text class="mono" x="334" y="${y + 17}" text-anchor="end">${v}</text>`; });
+    s += nt(10, 52, "Python keeps"); s += nt(10, 68, "the count up"); s += nt(10, 84, "to date for you");
+    return s; })())},
+ {h:"A variable is a name tag, not a box", p:"<code>a = 42</code> sticks the label <code>a</code> on the box. <code>b = a</code> sticks a <b>second label on the same box</b>; nothing is copied. Lists and dicts work the same way: they hold arrows to boxes, not the values themselves.",
+  pic: pic(110, "Two names, a and b, both point to one int box holding 42", tg(10, 16, "a") + tg(10, 70, "b") + bx(170, 32, 100, 48, "int", "42") + ar(38, 28, 168, 50) + ar(38, 82, 168, 64) + nt(290, 52, "two names,", "k") + nt(290, 68, "one box"))},
+ {h:"Some boxes can change, some can't", p:"<b>Immutable</b> boxes (int, str, tuple…) can never change. Code that looks like it changes them actually makes a <b>new</b> box and moves the name. <b>Mutable</b> boxes (list, dict, set) are changed in place, so every name pointing at them sees the change.",
+  pic: pic(140, "Left: x += 1 makes a new int box 6 while the old 5 is left behind. Right: appending to a list changes the same list box.", (() => {
+    let s = tg(10, 38, "x") + bx(90, 8, 66, 44, "int", "6", "fresh") + bx(90, 64, 66, 44, "int", "5", "old") + ar(38, 50, 88, 30) + ar(38, 50, 88, 86, "old");
+    s += nt(10, 128, "x += 1 → a new box");
+    const lx = 300; s += tg(220, 38, "nums") + `<rect x="${lx}" y="22" width="132" height="52" rx="6" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.4"/><text class="cs" x="${lx + 7}" y="35">list</text>`;
+    [1, 2, 3, 4].forEach((v, k) => { s += cell(lx + 6 + k * 31, 40, 28, 26, String(v), k === 3 ? "on" : ""); });
+    s += ar(272, 50, 298, 50) + nt(220, 128, "append → same box, changed");
+    return s; })())}
+];
+
+
+function listPic(kind){
+  const n = kind === "list" ? 4 : 3, w = 16 + n * 40;
+  let s = tg(10, 30, "nums") + ar(62, 42, 98, 42);
+  s += `<rect x="100" y="18" width="${w}" height="52" rx="6" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.4"/><text class="cs" x="107" y="31">${kind === "list" ? "list" : "tuple · fixed size"}</text>`;
+  for (let k = 0; k < n; k++){ const cx = 108 + k * 40;
+    if (k === 3){ s += cell(cx, 36, 36, 26, "spare", "spare", true); continue; }
+    s += cell(cx, 36, 36, 26, "", ""); s += `<circle class="d" cx="${cx + 18}" cy="49" r="3.5"/>`; }
+  [10, 20, 30].forEach((v, k) => { const bxX = 70 + k * 100; s += bx(bxX, 112, 70, 44, "int", String(v)); s += arV(126 + k * 40, 49, bxX + 35, 110); });
+  s += nt(kind === "list" ? 290 : 250, 34, kind === "list" ? "the list stores arrows;" : "same arrows as a list,", "k");
+  s += nt(kind === "list" ? 290 : 250, 50, kind === "list" ? "the numbers are" : "but no spare room:");
+  s += nt(kind === "list" ? 290 : 250, 66, kind === "list" ? "separate boxes" : "it can never grow");
+  return pic(166, kind === "list" ? "A list box holding three arrows that point to separate int boxes 10, 20 and 30, plus one spare slot" : "A tuple box holding three arrows to int boxes, with no spare slot", s);
+}
+
+const CARDS = [
+ {name:"int", chip:["imm", "can't change"],
+  plain:"A whole number, like <code>5</code> or <code>-12</code>. Each int is its own box holding the number. Python ints have <b>no maximum</b>: when a number gets bigger, its box simply grows.",
+  pic: pic(126, "Name a points to a new int box 6, while name b still points to the old int box 5", tg(10, 22, "a") + tg(10, 82, "b") + bx(150, 10, 90, 48, "int", "6", "fresh") + bx(150, 70, 90, 48, "int", "5") + ar(38, 34, 148, 34) + ar(38, 94, 148, 94) + nt(258, 30, "a = a + 1 made a new box 6", "k") + nt(258, 46, "and moved the name a to it.") + nt(258, 98, "b still points to the old 5.")),
+  means:["Numbers never overflow. <code>2 ** 100</code> just works; it uses a bit more memory.",
+   "<code>a = a + 1</code> doesn't change the box. It makes a new box and moves the name <code>a</code> to it. Other names still see the old number.",
+   "Every int is a full object (about 28 bytes), not a bare 8-byte number as in C. A list of a million ints needs about 36 MB. For heavy number crunching, use NumPy arrays, which store raw numbers side by side.",
+   "Small numbers (−5 to 256) are made once and shared. That's an internal shortcut, so always compare numbers with <code>==</code>, never <code>is</code>."],
+  code:["a = 5","b = a           # b points to the same box","a = a + 1       # a new box 6 is made; a moves to it","print(a, b)     # 6 5","print(2 ** 100) # 1267650600228229401496703205376"],
+  size:"<b>28 bytes</b> for everyday numbers, and about 4 bytes more for every extra 9 digits."},
+ {name:"float", chip:["imm", "can't change"],
+  plain:"A number with a decimal point, like <code>3.14</code>. Python stores it in binary with about <b>15–17 significant digits</b>, the same way almost every programming language does.",
+  pic: pic(104, "Name x points to a float box showing 0.1; what is really stored is 0.1000000000000000055", tg(10, 32, "x") + ar(38, 44, 118, 44) + bx(120, 20, 100, 48, "float", "0.1") + nt(240, 34, "what's really stored:", "k") + mono(240, 54, "0.1000000000000000055…") + nt(240, 76, "binary can't hold 0.1 exactly")),
+  means:["Many decimals, like <code>0.1</code>, can't be stored exactly in binary, so tiny rounding errors appear.",
+   "Never compare floats with <code>==</code>. Use <code>math.isclose(a, b)</code>.",
+   "For money, use the <code>decimal</code> module, which stores exact decimal digits.",
+   "Each float is its own 24-byte box, and every calculation creates a new one."],
+  code:["print(0.1 + 0.2)          # 0.30000000000000004","print(0.1 + 0.2 == 0.3)   # False","import math","print(math.isclose(0.1 + 0.2, 0.3))   # True"],
+  size:"Always <b>24 bytes</b>."},
+ {name:"bool & None", chip:["imm", "one shared copy"],
+  plain:"<code>True</code>, <code>False</code> and <code>None</code> are special: Python creates <b>exactly one</b> of each when it starts. Every name that holds <code>None</code> points at that same single box.",
+  pic: pic(122, "Three names x, y and result all point to the single None box", tg(10, 10, "x") + tg(10, 50, "y") + tg(10, 90, "result") + bx(200, 38, 110, 48, "NoneType", "None") + ar(38, 22, 198, 54) + ar(38, 62, 198, 62) + ar(tgEnd(10, "result") + 2, 102, 198, 70) + nt(326, 58, "one shared box", "k") + nt(326, 74, "for the whole program")),
+  means:["Check for None with <code>x is None</code>. <code>is</code> asks \"is this the very same box?\", and there is only one None box.",
+   "<code>bool</code> is a kind of <code>int</code>: <code>True</code> acts like 1 and <code>False</code> like 0, so <code>sum(flags)</code> counts the True values.",
+   "These boxes are never deleted while your program runs."],
+  code:["print(True + True)    # 2","flags = [True, False, True]","print(sum(flags))     # 2","x = None","print(x is None)      # True"],
+  size:"True and False are 28 bytes each and None is 16, but since only one of each exists, using them costs nothing extra."},
+ {name:"str", chip:["imm", "can't change"],
+  plain:"Text, like <code>\"hello\"</code>. The characters sit <b>side by side in one box</b>, like letters in a row of squares. Once a string is made, it can never be changed.",
+  pic: pic(118, "Name s points to a str box containing the characters h, e, l, l, o side by side", (() => { let s = tg(10, 40, "s") + ar(38, 52, 98, 52) + `<rect x="100" y="20" width="220" height="66" rx="6" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.4"/><text class="cs" x="107" y="33">str</text>`;
+    "hello".split("").forEach((c, k) => { s += cell(112 + k * 40, 42, 36, 34, c, ""); });
+    return s + nt(100, 108, "Characters stored together. The box can never change.", "k"); })()),
+  means:["Methods like <code>.upper()</code> or <code>.replace()</code> never change the original. They return a <b>new</b> string, so save the result: <code>s = s.upper()</code>.",
+   "You can't change a single character: <code>s[0] = \"H\"</code> is an error. Build a new string instead.",
+   "Adding to a string in a loop (<code>s += piece</code>) copies the whole string every time. Collect the pieces in a list and join them once: <code>\"\".join(parts)</code>.",
+   "Plain English text uses 1 byte per character. A single emoji makes the whole string use 4 bytes per character."],
+  code:["s = \"hello\"","s2 = s.upper()    # makes a NEW string","print(s, s2)      # hello HELLO","print(s[0])       # h","s[0] = \"H\"        # TypeError: 'str' object does not support item assignment"],
+  size:"About <b>41 bytes + 1 per character</b> for plain text: <code>\"hello\"</code> is 46 bytes."},
+ {name:"list", chip:["mut", "can change"],
+  plain:"An ordered collection you can change. A list <b>doesn't store the items themselves</b>. It stores a row of arrows (references) that point to the items, and each item lives in its own box.",
+  pic: listPic("list"),
+  means:["Because it stores arrows, one list can hold any mix of types: <code>[1, \"a\", [2, 3]]</code>.",
+   "<code>b = a</code> does <b>not</b> copy a list. Both names point to the same list, so a change through one shows up through the other. Use <code>a.copy()</code> or <code>list(a)</code> for a real copy.",
+   "Lists keep some spare room at the end, so <code>append()</code> is fast. Inserting or removing at the <b>front</b> of a big list is slow, because every arrow has to shift over (the list simulator below shows this).",
+   "Watch out: <code>[[0] * 3] * 3</code> makes three arrows to the <b>same</b> inner list. Use <code>[[0] * 3 for _ in range(3)]</code>."],
+  code:["nums = [10, 20, 30]","alias = nums         # same list, second name","alias.append(40)","print(nums)          # [10, 20, 30, 40]","copy = nums.copy()   # a separate list","copy.append(50)","print(nums)          # [10, 20, 30, 40]"],
+  size:"<b>56 bytes + 8 per item</b> (plus some spare room). The items are separate: <code>[1, 2, 3]</code> is 88 bytes for the list, and the three ints add 84 more."},
+ {name:"tuple", chip:["imm", "can't change"],
+  plain:"Like a list, but it <b>can't change</b> after it's created: no adding, removing or replacing items. It's also a row of arrows, but packed tightly into one box with no spare room.",
+  pic: listPic("tuple"),
+  means:["Use tuples for fixed groups of values that belong together: coordinates <code>(x, y)</code>, RGB colours, database rows, or several values returned from a function.",
+   "A tuple is a little smaller and faster to create than a list with the same items.",
+   "Tuples can be dict keys or set items (as long as everything inside is immutable too). Lists can't.",
+   "\"Can't change\" applies to the arrows only. If a tuple holds a list, that list can still change."],
+  code:["point = (3, 4)","point[0] = 5      # TypeError: 'tuple' object does not support item assignment","t = ([1, 2], 3)","t[0].append(99)   # allowed: the list inside can change","print(t)          # ([1, 2, 99], 3)"],
+  size:"<b>40 bytes + 8 per item</b>: <code>(1, 2, 3)</code> is 64 bytes, compared with 88 for the same list."},
+ {name:"dict", chip:["mut", "can change"],
+  plain:"Stores <b>key → value</b> pairs. Instead of searching through every key, Python turns the key into a number called a <b>hash</b>, and that number tells it which slot to look in. So it jumps straight to the right slot.",
+  pic: pic(178, "The key bob is turned into a hash, which points directly at slot 3 of an eight-slot table where bob: 25 is stored", mono(12, 28, "ages[\"bob\"]") + ar(104, 24, 142, 24) + `<rect x="144" y="8" width="176" height="32" rx="6" style="fill:var(--gc);stroke:var(--rc)"/>` + mono(232, 29, "hash(\"bob\") → slot 3", "middle") + arV(232, 40, 192, 76) + slots(78, {1:["ann:30"], 3:["bob:25", true]}, "slot") + nt(12, 152, "It jumps straight to slot 3; the other keys are never checked.", "k") + nt(12, 168, "(Slot numbers are just an example; real ones vary.)")),
+  means:["Looking up a key is just as fast with 10 keys as with 10 million. That's why dicts are used everywhere in Python.",
+   "Keys must be immutable (strings, numbers, tuples). A list can't be a key: if it changed, its hash would change and Python would look in the wrong slot.",
+   "Dicts remember insertion order, so looping gives you keys in the order you added them.",
+   "The speed costs memory: a dict keeps empty slots so it never gets crowded, and grows automatically when it's about two-thirds full (the dict simulator in this section lets you watch this)."],
+  code:["ages = {\"ann\": 30, \"bob\": 25}","print(ages[\"bob\"])    # 25  (found instantly)","ages[\"cy\"] = 41       # add a new key","print(list(ages))     # ['ann', 'bob', 'cy']  (insertion order)","bad = {[1, 2]: \"x\"}   # TypeError: unhashable type: 'list'"],
+  size:"<b>64 bytes</b> empty and <b>184 bytes</b> with 1–5 keys; it roughly doubles each time it grows. Keys and values are separate boxes."},
+ {name:"set", chip:["mut", "can change"],
+  plain:"An unordered collection of <b>unique</b> items. Think of it as a dict with keys but no values. It uses the same hash trick, so checking whether something is in a set is instant.",
+  pic: pic(166, "Items python and data are placed in the slots their hashes pick; the second python lands on the same slot and is dropped", mono(12, 22, "{\"python\", \"data\", \"python\"}") + slots(42, {2:["python", true], 5:["data", true]}, "slot") + nt(12, 126, "Each item goes to the slot its hash picks.", "k") + nt(12, 142, "The second \"python\" lands on the same slot,") + nt(12, 158, "finds it already there, and is skipped.")),
+  means:["<code>x in my_set</code> is instant, while <code>x in my_list</code> checks the items one by one. With a million items, the set was about <b>60,000 times faster</b> in a quick test.",
+   "Duplicates are dropped automatically, so <code>set(my_list)</code> is the quickest way to remove them (you lose the order, though).",
+   "No order and no indexing: <code>my_set[0]</code> doesn't work.",
+   "Items must be immutable, just like dict keys. Use <code>frozenset</code> when you need a set that can't change."],
+  code:["tags = {\"python\", \"data\", \"python\"}","print(len(tags))          # 2  (duplicate dropped)","print(\"data\" in tags)     # True  (instant check)","emails = [\"a@x.com\", \"b@x.com\", \"a@x.com\"]","print(len(set(emails)))   # 2"],
+  size:"<b>216 bytes</b> even when empty (it carries a small built-in table) and grows as you add items."},
+ {name:"range & others", chip:["imm", "can't change"],
+  plain:"<code>range</code> <b>doesn't store its numbers</b>. It only remembers start, stop and step, and works out each number when you ask for it.",
+  pic: pic(132, "A range box stores only start, stop and step in 48 bytes, while the equivalent list stores a million arrows to a million int boxes", (() => {
+    let s = bx(10, 14, 186, 70, "range(1_000_000)", "") + mono(22, 50, "start 0 · stop 1,000,000") + mono(22, 68, "step 1") + nt(10, 108, "48 bytes, whatever the length", "k");
+    s += `<rect x="216" y="14" width="214" height="70" rx="6" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.4"/><text class="cs" x="223" y="27">list(range(1_000_000))</text>`;
+    for (let k = 0; k < 24; k++) s += `<rect x="${222 + (k % 12) * 17}" y="${36 + Math.floor(k / 12) * 22}" width="14" height="18" rx="2" style="fill:var(--bg);stroke:var(--line)"/>`;
+    return s + nt(216, 104, "a million arrows + a million", "k") + nt(216, 120, "int boxes ≈ 36 MB", "k"); })()),
+  means:["<code>range(1_000_000)</code> takes 48 bytes, while <code>list(range(1_000_000))</code> takes about 8 MB for the arrows alone, plus the int boxes.",
+   "Loop over <code>range(...)</code> directly; only turn it into a list if you really need one.",
+   "Generators work the same way: they produce items one at a time instead of storing them all.",
+   "Others you'll meet: <code>bytes</code> (raw binary data such as file contents, can't change), <code>bytearray</code> (bytes you can change), and <code>frozenset</code> (a set that can't change)."],
+  code:["import sys","r = range(1_000_000)","print(sys.getsizeof(r))          # 48","print(sys.getsizeof(list(r)))    # 8000056","print(r[10], len(r))             # 10 1000000"],
+  size:"Always <b>48 bytes</b>, however long."},
+ {name:"your own objects", chip:["mut", "can change"],
+  plain:"When you create an object from your own class, like <code>p = Point(1, 2)</code>, Python makes one box for it. That box holds the object's <b>attributes</b> (<code>x</code> and <code>y</code>). The <b>methods</b> aren't copied into every object; they're stored once on the class and shared.",
+  pic: pic(152, "Two Point objects, each holding its own x and y, both pointing to one shared class Point box that stores the methods", tg(10, 22, "p") + tg(10, 98, "q") + bx(80, 8, 130, 52, "Point object", "x=1  y=2") + bx(80, 84, 130, 52, "Point object", "x=5  y=7") + ar(38, 34, 78, 34) + ar(38, 110, 78, 110) + bx(286, 42, 140, 60, "class Point", "methods") + ar(210, 34, 284, 64) + ar(210, 110, 284, 80) + nt(286, 122, "stored once, shared", "k") + nt(286, 138, "by every object")),
+  means:["Each object keeps its own attribute values, but all objects share the class's methods, so creating many objects doesn't duplicate your code.",
+   "Objects are mutable, like lists: <code>p.x = 10</code> changes that object, and every name pointing at it sees the change.",
+   "Passing an object to a function passes an arrow to it, so the function can change its attributes.",
+   "Attributes live in a small dictionary inside the object. If you create millions of small objects, add <code>__slots__ = (\"x\", \"y\")</code> to the class to make each one much smaller."],
+  code:["class Point:","    def __init__(self, x, y):","        self.x = x","        self.y = y","p = Point(1, 2)","q = p             # same object, second name","q.x = 10","print(p.x)        # 10","print(p.__dict__) # {'x': 10, 'y': 2}"],
+  size:"Around 50 bytes for the object plus storage for its attributes; <code>__slots__</code> removes most of that extra storage."}
+];
+const colorCode = lines => lines.map(l => { const i = l.indexOf("#"); return i < 0 ? esc(l) : esc(l.slice(0, i)) + `<span class="c">${esc(l.slice(i))}</span>`; }).join("\n");
+const cardHTML = c => `<article class="tcard"><div class="th"><h3>${c.name}</h3><span class="chip ${c.chip[0]}">${c.chip[1]}</span></div>
+  <p class="plainw">${c.plain}</p>
+  <div class="pic">${c.pic}</div>
+  <h4>What this means for you</h4><ul>${c.means.map(m => `<li>${m}</li>`).join("")}</ul>
+  <h4>Try it</h4><pre class="snip">${colorCode(c.code)}</pre>
+  <p class="sizeline">Size: ${c.size}</p></article>`;
+document.querySelectorAll("[data-cards]").forEach(h => { h.innerHTML = h.dataset.cards.split(",").map(n => CARDS.find(c => c.name === n.trim())).filter(Boolean).map(cardHTML).join(""); });
+
+
+})();
+</script>
+</body>
+</html>
